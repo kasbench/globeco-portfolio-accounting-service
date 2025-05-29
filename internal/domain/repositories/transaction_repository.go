@@ -7,7 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Transaction represents a portfolio transaction entity
+// Transaction represents a portfolio transaction entity for repository operations
 type Transaction struct {
 	ID                   int64           `json:"id" db:"id"`
 	PortfolioID          string          `json:"portfolio_id" db:"portfolio_id"`
@@ -27,14 +27,39 @@ type Transaction struct {
 
 // TransactionFilter holds filtering options for transaction queries
 type TransactionFilter struct {
-	PortfolioID     *string    `json:"portfolio_id,omitempty"`
-	SecurityID      *string    `json:"security_id,omitempty"`
-	TransactionDate *time.Time `json:"transaction_date,omitempty"`
-	TransactionType *string    `json:"transaction_type,omitempty"`
-	Status          *string    `json:"status,omitempty"`
-	Limit           int        `json:"limit,omitempty"`
-	Offset          int        `json:"offset,omitempty"`
-	SortBy          []string   `json:"sort_by,omitempty"`
+	// ID filters
+	ID          *int64  `json:"id,omitempty"`
+	PortfolioID *string `json:"portfolio_id,omitempty"`
+	SecurityID  *string `json:"security_id,omitempty"`
+	SourceID    *string `json:"source_id,omitempty"`
+
+	// Status and type filters
+	Status          *string `json:"status,omitempty"`
+	TransactionType *string `json:"transaction_type,omitempty"`
+
+	// Date filters
+	TransactionDate     *time.Time `json:"transaction_date,omitempty"`
+	TransactionDateFrom *time.Time `json:"transaction_date_from,omitempty"`
+	TransactionDateTo   *time.Time `json:"transaction_date_to,omitempty"`
+
+	// Amount filters
+	QuantityMin *decimal.Decimal `json:"quantity_min,omitempty"`
+	QuantityMax *decimal.Decimal `json:"quantity_max,omitempty"`
+	PriceMin    *decimal.Decimal `json:"price_min,omitempty"`
+	PriceMax    *decimal.Decimal `json:"price_max,omitempty"`
+
+	// Collections for IN queries
+	IDs              []int64  `json:"ids,omitempty"`
+	PortfolioIDs     []string `json:"portfolio_ids,omitempty"`
+	SecurityIDs      []string `json:"security_ids,omitempty"`
+	Statuses         []string `json:"statuses,omitempty"`
+	TransactionTypes []string `json:"transaction_types,omitempty"`
+
+	// Pagination and sorting
+	Limit      int         `json:"limit,omitempty"`
+	Offset     int         `json:"offset,omitempty"`
+	SortFields []SortField `json:"sort_fields,omitempty"`
+	SortBy     []string    `json:"sort_by,omitempty"` // Legacy support for simple sorting
 }
 
 // TransactionRepository defines the contract for transaction data access
