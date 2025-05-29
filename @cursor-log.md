@@ -326,4 +326,113 @@ Successfully implemented comprehensive external service client layer for the Glo
 
 **Next Phase:** Ready for Phase 4.1 - DTOs and Mappers implementation.
 
-**Action Taken:** Successfully completed Phase 3.3. External service clients provide robust foundation for integration with portfolio and security services, featuring comprehensive fault tolerance, performance optimization, and service management capabilities. 
+**Action Taken:** Successfully completed Phase 3.3. External service clients provide robust foundation for integration with portfolio and security services, featuring comprehensive fault tolerance, performance optimization, and service management capabilities.
+
+## Request: Phase 4.1 - DTOs and Mappers Implementation
+
+**Date:** 2024-12-19  
+**Request:** Execute step 4.1 of the execution plan for DTOs and Mappers including Transaction DTOs (Post/Response), Balance DTOs, Filter DTOs for queries, Pagination DTOs, Domain-to-DTO mappers, and DTO validation.
+
+**Summary:** 
+- Implementing data transfer objects for API contracts based on requirements
+- Creating Transaction DTOs for POST and response operations
+- Building Balance DTOs for query responses
+- Developing Filter DTOs for advanced querying capabilities
+- Creating Pagination DTOs for consistent API pagination
+- Implementing Domain-to-DTO mappers for clean layer separation
+- Adding DTO validation for input sanitization
+
+**Action Taken:** Implementing all Phase 4.1 deliverables for application layer DTOs and mapping functionality.
+
+## Request: Phase 4.1 - DTOs and Mappers Implementation Completed
+
+**Date:** 2024-12-19  
+**Request:** Completed Phase 4.1 - DTOs and Mappers implementation including Transaction DTOs (Post/Response), Balance DTOs, Filter DTOs for queries, Pagination DTOs, Domain-to-DTO mappers, and DTO validation.
+
+**Summary:** 
+Successfully implemented comprehensive DTOs and mapping layer for the GlobeCo Portfolio Accounting Service with complete data transfer objects, advanced filtering capabilities, and robust domain-to-DTO mapping functionality.
+
+**Technical Achievements:**
+
+**Data Transfer Objects (DTOs):**
+- TransactionPostDTO and TransactionResponseDTO with complete validation tags
+- BalanceDTO with proper field mapping and optional security ID handling
+- Comprehensive filter DTOs for advanced querying (TransactionFilter, BalanceFilter)
+- Pagination and sorting DTOs with validation and helper methods
+- Common response DTOs (ErrorResponse, SuccessResponse, HealthResponse)
+- Batch operation DTOs for bulk processing and error handling
+- Statistics DTOs for transaction and balance analytics
+
+**Transaction DTOs:**
+- TransactionPostDTO with comprehensive validation rules and business logic validation
+- TransactionResponseDTO matching API specification requirements
+- TransactionListResponse with pagination support
+- TransactionBatchResponse for bulk operations with success/failure tracking
+- TransactionStatsDTO for analytics and reporting
+- File processing status DTOs for CLI operations
+
+**Balance DTOs:**
+- BalanceDTO with proper decimal handling and timestamp formatting
+- PortfolioSummaryDTO with cash balance and security position aggregation
+- SecurityPositionDTO for individual security holdings
+- Balance update DTOs for modification operations
+- Balance history DTOs for audit trail functionality
+- Bulk update DTOs with validation and error handling
+
+**Advanced Filter DTOs:**
+- TransactionFilter with comprehensive search capabilities (date ranges, amounts, status, type)
+- BalanceFilter with quantity ranges and portfolio/security filtering
+- PortfolioSummaryFilter for aggregated views
+- FileProcessingFilter for CLI monitoring
+- SearchRequest/SearchResponse for general search functionality
+- DateRangeFilter and AmountRangeFilter for reusable components
+
+**Domain-to-DTO Mappers:**
+- TransactionMapper with complete bidirectional mapping between domain models and DTOs
+- BalanceMapper with support for aggregations and portfolio summaries
+- Proper handling of value objects (PortfolioID, SecurityID, SourceID, Quantity, Price)
+- Business validation integrated into mapping layer
+- Error handling and validation error collection
+
+**Mapping Features:**
+- Domain Transaction to TransactionResponseDTO conversion
+- TransactionPostDTO to domain Transaction with builder pattern
+- Balance domain model to BalanceDTO conversion with optional fields
+- Portfolio summary aggregation from balance collections
+- Batch operation response construction with statistics
+- Validation error collection and formatting
+
+**Validation Integration:**
+- Comprehensive validation for TransactionPostDTO with business rules
+- Balance update request validation with quantity constraints
+- Bulk operation validation with size limits and individual item validation
+- Business rule enforcement (cash vs security transactions)
+- Error message formatting and field-specific validation
+
+**Pagination and Response Formatting:**
+- PaginationRequest/PaginationResponse with helper methods
+- Standardized error response format with trace IDs
+- Success response wrapper for consistent API responses
+- Health check response format for monitoring
+- Metrics response format for observability
+
+**Files Created:**
+- `internal/application/dto/common.go` - Common DTOs and pagination support
+- `internal/application/dto/transaction.go` - Transaction-specific DTOs and validation
+- `internal/application/dto/balance.go` - Balance-specific DTOs and bulk operations
+- `internal/application/dto/filters.go` - Advanced filtering DTOs with validation
+- `internal/application/mappers/transaction_mapper.go` - Transaction domain-DTO mapping
+- `internal/application/mappers/balance_mapper.go` - Balance domain-DTO mapping
+
+**Integration Features:**
+- Seamless integration with domain models and value objects
+- Support for decimal precision in financial calculations
+- Proper time formatting and timezone handling
+- Optional field handling for nullable database columns
+- Business rule validation at DTO and mapping layers
+
+**Build Verification:** All packages compile successfully with `go build ./internal/application/...`
+
+**Next Phase:** Ready for Phase 4.2 - Application Services implementation.
+
+**Action Taken:** Successfully completed Phase 4.1. DTOs and Mappers provide robust foundation for API layer with comprehensive data transfer objects, advanced filtering capabilities, and complete bidirectional mapping between domain models and API contracts. 

@@ -278,24 +278,34 @@ github.com/shopspring/decimal
 
 ## Phase 4: Application Layer (Week 4)
 
-### 4.1 DTOs and Mappers
+### 4.1 DTOs and Mappers ✅ COMPLETED
 **Duration:** 2-3 days  
 **Dependencies:** Domain layer
+**Status:** COMPLETED ✅
 
 #### Deliverables:
-- [ ] Transaction DTOs (Post/Response)
-- [ ] Balance DTOs
-- [ ] Filter DTOs for queries
-- [ ] Pagination DTOs
-- [ ] Domain-to-DTO mappers
-- [ ] DTO validation
+- [x] Transaction DTOs (Post/Response)
+- [x] Balance DTOs
+- [x] Filter DTOs for queries
+- [x] Pagination DTOs
+- [x] Domain-to-DTO mappers
+- [x] DTO validation
 
 #### Key Files:
-- `internal/application/dto/transaction.go`
-- `internal/application/dto/balance.go`
-- `internal/application/dto/filters.go`
-- `internal/application/mappers/transaction_mapper.go`
-- `internal/application/mappers/balance_mapper.go`
+- ✅ `internal/application/dto/common.go` - Common DTOs and pagination support
+- ✅ `internal/application/dto/transaction.go` - Transaction-specific DTOs and validation
+- ✅ `internal/application/dto/balance.go` - Balance-specific DTOs and bulk operations
+- ✅ `internal/application/dto/filters.go` - Advanced filtering DTOs with validation
+- ✅ `internal/application/mappers/transaction_mapper.go` - Transaction domain-DTO mapping
+- ✅ `internal/application/mappers/balance_mapper.go` - Balance domain-DTO mapping
+
+**Completion Notes:**
+- Complete data transfer objects with validation tags and business rules
+- Advanced filtering capabilities for complex queries with date ranges and amounts
+- Bidirectional mapping between domain models and DTOs with proper value object handling
+- Pagination and sorting support with helper methods
+- Comprehensive validation integration with error collection and formatting
+- Build verification successful with `go build ./internal/application/...`
 
 ### 4.2 Application Services
 **Duration:** 3-4 days  
