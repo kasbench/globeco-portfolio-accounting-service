@@ -201,7 +201,7 @@ Examples:
   %s process --file transactions.csv --verbose --log-level debug
 
 For more information, visit: https://github.com/kasbench/globeco-portfolio-accounting-service
-`, cliDescription, cliVersion, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
+`, cliDescription, cliVersion, cliName, cliName, cliName, cliName, cliName, cliName, cliName, cliName)
 }
 
 // validateArgs validates command line arguments
