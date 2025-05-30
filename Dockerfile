@@ -2,6 +2,11 @@
 # Stage 1: Build environment
 FROM golang:1.23-alpine AS builder
 
+# Docker automatic platform arguments
+ARG TARGETPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
+
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -17,13 +22,13 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the applications
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build the applications with dynamic architecture
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
     -o bin/server ./cmd/server
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
     -o bin/cli ./cmd/cli
