@@ -148,11 +148,11 @@ func setDefaults() {
 	viper.SetDefault("server.graceful_shutdown_timeout", "30s")
 
 	// Database defaults
-	viper.SetDefault("database.host", "localhost")
+	viper.SetDefault("database.host", "globeco-portfolio-accounting-service-postgresql")
 	viper.SetDefault("database.port", 5432)
-	viper.SetDefault("database.user", "globeco")
-	viper.SetDefault("database.password", "password")
-	viper.SetDefault("database.database", "portfolio_accounting")
+	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.password", "")
+	viper.SetDefault("database.database", "postgres")
 	viper.SetDefault("database.ssl_mode", "disable")
 	viper.SetDefault("database.max_open_conns", 25)
 	viper.SetDefault("database.max_idle_conns", 5)
@@ -162,14 +162,14 @@ func setDefaults() {
 
 	// Cache defaults
 	viper.SetDefault("cache.enabled", true)
-	viper.SetDefault("cache.hosts", []string{"localhost:5701"})
+	viper.SetDefault("cache.hosts", []string{"globeco-portfolio-accounting-service-cache:5701"})
 	viper.SetDefault("cache.cluster_name", "globeco-portfolio-accounting")
 	viper.SetDefault("cache.ttl", "1h")
 	viper.SetDefault("cache.timeout", "5s")
 
 	// Kafka defaults
-	viper.SetDefault("kafka.enabled", true)
-	viper.SetDefault("kafka.brokers", []string{"localhost:9092"})
+	viper.SetDefault("kafka.enabled", false)
+	viper.SetDefault("kafka.brokers", []string{"portfolio-execution-service-kafka:9092"})
 	viper.SetDefault("kafka.topic", "portfolio-accounting-events")
 	viper.SetDefault("kafka.group_id", "portfolio-accounting-service")
 	viper.SetDefault("kafka.batch_size", 100)

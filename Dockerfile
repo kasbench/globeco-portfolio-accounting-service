@@ -58,8 +58,12 @@ COPY --from=builder /app/bin/cli /usr/local/bin/cli
 # Copy configuration template
 COPY --from=builder /app/config.yaml.example /etc/globeco/config.yaml
 
-# Copy database migrations
+# Copy database migrations to multiple locations for flexibility
 COPY --from=builder /app/migrations /usr/local/share/migrations
+COPY --from=builder /app/migrations /migrations
+
+# Set working directory
+WORKDIR /
 
 # Set up directory structure
 USER nobody:nobody
@@ -166,7 +170,7 @@ COPY --from=builder /app/bin/cli /usr/local/bin/cli
 COPY --from=builder /app/config.yaml.example /etc/globeco/config.yaml
 
 # Copy database migrations
-COPY --from=builder /app/migrations /usr/local/share/migrations
+COPY --from=builder /app/migrations /migrations
 
 USER appuser
 

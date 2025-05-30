@@ -48,19 +48,27 @@ services:
         - BUILDKIT_INLINE_CACHE=1
     environment:
       # Development database
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: portfolio_accounting_dev
-      DATABASE_USER: dev_user
-      DATABASE_PASSWORD: dev_password
+      GLOBECO_PA_DATABASE_HOST: postgres
+      GLOBECO_PA_DATABASE_PORT: 5432
+      GLOBECO_PA_DATABASE_DATABASE: portfolio_accounting_dev
+      GLOBECO_PA_DATABASE_USER: dev_user
+      GLOBECO_PA_DATABASE_PASSWORD: dev_password
+      GLOBECO_PA_DATABASE_MIGRATIONS_PATH: /app/migrations
+      GLOBECO_PA_DATABASE_AUTO_MIGRATE: "true"
       
       # Development logging
-      LOG_LEVEL: debug
-      LOG_FORMAT: console  # More readable for development
+      GLOBECO_PA_LOGGING_LEVEL: debug
+      GLOBECO_PA_LOGGING_FORMAT: console  # More readable for development
       
       # Development cache settings
-      CACHE_TYPE: hazelcast
-      CACHE_TTL: 60s  # Shorter TTL for development
+      GLOBECO_PA_CACHE_ENABLED: "true"
+      GLOBECO_PA_CACHE_TTL: 60s  # Shorter TTL for development
+      
+      # External services
+      GLOBECO_PA_EXTERNAL_PORTFOLIO_SERVICE_HOST: mock-portfolio-service
+      GLOBECO_PA_EXTERNAL_PORTFOLIO_SERVICE_PORT: 8080
+      GLOBECO_PA_EXTERNAL_SECURITY_SERVICE_HOST: mock-security-service
+      GLOBECO_PA_EXTERNAL_SECURITY_SERVICE_PORT: 8080
       
       # Development-specific features
       ENABLE_PPROF: true
@@ -92,11 +100,13 @@ services:
     build:
       target: development
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_NAME: portfolio_accounting_dev
-      DATABASE_USER: dev_user
-      DATABASE_PASSWORD: dev_password
-      LOG_LEVEL: debug
+      GLOBECO_PA_DATABASE_HOST: postgres
+      GLOBECO_PA_DATABASE_DATABASE: portfolio_accounting_dev
+      GLOBECO_PA_DATABASE_USER: dev_user
+      GLOBECO_PA_DATABASE_PASSWORD: dev_password
+      GLOBECO_PA_DATABASE_MIGRATIONS_PATH: /app/migrations
+      GLOBECO_PA_DATABASE_AUTO_MIGRATE: "true"
+      GLOBECO_PA_LOGGING_LEVEL: debug
     volumes:
       - .:/app:cached
       - ./test-data:/data:ro

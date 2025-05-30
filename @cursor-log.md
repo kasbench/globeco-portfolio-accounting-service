@@ -1527,3 +1527,78 @@ Phase 8.1 Containerization implementation complete with comprehensive Docker con
 - ✅ Comprehensive documentation
 
 **Result:** The GlobeCo Portfolio Accounting Service now automatically runs database migrations on startup, ensuring the database schema is always up-to-date. This works seamlessly in local development, Docker containers, and Kubernetes deployments.
+
+## 2025-01-30 - Fix Docker Migration Path Issue
+
+**Request:** User reported migrations failing in Docker with error: `failed to open source, "file://migrations": open .: no such file or directory`
+
+**Analysis:** 
+- Docker containers copy migrations to `/usr/local/share/migrations` 
+- Configuration still defaults to "migrations" path
+- Environment variable override not working properly in Docker
+- Need to fix Docker Compose and container configuration
+
+**Action:** Fixing Docker migration path configuration to use correct container path.
+
+**Implementation Completed:**
+
+**✅ Fixed Docker Environment Variables:**
+- Updated `docker-compose.yml` to use correct `GLOBECO_PA_` prefixed environment variables
+- Set `GLOBECO_PA_DATABASE_MIGRATIONS_PATH: /app/migrations` for development containers
+- Updated `docker-compose.override.yml` to use consistent environment variable naming
+
+**✅ Fixed Production Container Configuration:**
+- Created `docker-compose.prod.yml` for production testing
+- Set `GLOBECO_PA_DATABASE_MIGRATIONS_PATH: /usr/local/share/migrations` for production containers
+- Updated CLI service to use correct migration paths
+
+**✅ Verified Container Build:**
+- Production Docker image builds successfully with migrations copied to `/usr/local/share/migrations`
+- Development containers use volume-mounted migrations at `/app/migrations`
+- Environment variable configuration working correctly
+
+**✅ Test Results:**
+- Production container successfully finds migrations at correct path
+- Logs show: `"Running database migrations","path":"/usr/local/share/migrations"`
+- Auto-migration functionality working correctly
+- Environment variable override functioning as intended
+
+**✅ Configuration Standardization:**
+- All Docker services now use `GLOBECO_PA_` environment variable prefix
+- Consistent configuration across development and production environments
+- Proper migration path handling for both containerized and local development
+
+**Result:** Docker migration path issue completely resolved. The service now automatically runs database migrations on startup in both development and production Docker containers, ensuring database schema is always up-to-date.
+
+## 2025-01-30 - Fix PostgreSQL 17 Migration Syntax Issue
+
+**Request:** User asked if PostgreSQL migration syntax is valid for PostgreSQL 17, and reported continued migration failures with Dockerfile builds.
+
+**Analysis:** 
+- Found syntax error in `migrations/003_create_indexes.up.sql`
+- `NULLS NOT DISTINCT` clause syntax was malformed: `ON balances (portfolio_id, security_id NULLS NOT DISTINCT)` 
+- This PostgreSQL 15+ feature needs different syntax or compatibility approach
+- All other migration syntax (CREATE TABLE, CONSTRAINTS, COMMENTS) is fully valid for PostgreSQL 17
+
+**Action Completed:**
+
+**✅ Fixed Index Migration Syntax:**
+- Replaced problematic `NULLS NOT DISTINCT` with dual-index approach
+- Created separate unique indexes:
+  - `balances_portfolio_security_ndx` for non-null security_id values  
+  - `balances_portfolio_cash_ndx` for cash balances (security_id IS NULL)
+- Updated index comments to reflect new approach
+
+**✅ Verified PostgreSQL 17 Compatibility:**
+- Tested all migrations directly against PostgreSQL 17.x container
+- All CREATE TABLE statements work perfectly
+- All constraints, data types, and functions are valid
+- All indexes now create successfully
+- Verified complete database schema creation
+
+**✅ Migration Testing Results:**
+- `001_create_transactions_table.up.sql` ✅ Valid syntax, creates successfully
+- `002_create_balances_table.up.sql` ✅ Valid syntax, creates successfully  
+- `003_create_indexes.up.sql` ✅ Fixed and now creates all indexes successfully
+
+**Result:** All PostgreSQL migrations are now fully compatible with PostgreSQL 17. The original syntax issue has been resolved and migrations will work correctly in Docker containers.

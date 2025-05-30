@@ -30,11 +30,15 @@ ON transactions (status) WHERE status = 'NEW';
 
 -- Create indexes for balances table
 
--- Unique index on portfolio_id, security_id (NULLS NOT DISTINCT)
+-- Unique index on portfolio_id, security_id for non-null security_id
 -- This enforces that each portfolio can have at most one balance per security
--- and at most one cash balance (security_id = NULL)
 CREATE UNIQUE INDEX IF NOT EXISTS balances_portfolio_security_ndx 
-ON balances (portfolio_id, security_id NULLS NOT DISTINCT);
+ON balances (portfolio_id, security_id) WHERE security_id IS NOT NULL;
+
+-- Unique index on portfolio_id for cash balances (security_id IS NULL)
+-- This enforces that each portfolio can have at most one cash balance
+CREATE UNIQUE INDEX IF NOT EXISTS balances_portfolio_cash_ndx 
+ON balances (portfolio_id) WHERE security_id IS NULL;
 
 -- Index for querying balances by portfolio
 CREATE INDEX IF NOT EXISTS idx_balances_portfolio_id 
@@ -54,7 +58,8 @@ ON balances (last_updated);
 
 -- Add comments for index documentation
 COMMENT ON INDEX transaction_source_ndx IS 'Unique index on source_id for transaction idempotency';
-COMMENT ON INDEX balances_portfolio_security_ndx IS 'Unique index enforcing one balance per portfolio-security pair (NULLS NOT DISTINCT for cash)';
+COMMENT ON INDEX balances_portfolio_security_ndx IS 'Unique index enforcing one balance per portfolio-security pair (non-null securities only)';
+COMMENT ON INDEX balances_portfolio_cash_ndx IS 'Unique index enforcing one cash balance per portfolio (security_id IS NULL)';
 COMMENT ON INDEX idx_transactions_portfolio_security_date IS 'Composite index for efficient transaction queries';
 COMMENT ON INDEX idx_transactions_status_new IS 'Partial index for processing NEW transactions';
 COMMENT ON INDEX idx_balances_cash IS 'Partial index for cash balances (security_id IS NULL)'; 
