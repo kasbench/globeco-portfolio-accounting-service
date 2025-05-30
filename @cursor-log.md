@@ -1440,7 +1440,7 @@ Phase 8.1 Containerization implementation complete with comprehensive Docker con
 6. Configuration examples (YAML and environment variables)
 7. Development setup with make commands and workflows
 8. Docker and Kubernetes deployment instructions
-9. CLI file processing documentation with examples
+9. CLI usage examples and CSV format specification
 10. Testing strategy and commands
 11. Monitoring and observability features
 12. Security considerations and best practices
@@ -1459,3 +1459,71 @@ Phase 8.1 Containerization implementation complete with comprehensive Docker con
 - Security features and authentication
 - Development workflow and coding standards
 - Project roadmap and completed features
+
+## 2025-01-30 - Automatic Database Migrations on Startup
+
+**Request:** User requested to modify the service to automatically run database migrations upon startup.
+
+**Analysis:** 
+- Migration functionality already exists in `internal/infrastructure/database/connection.go`
+- RunMigrations() method is available with golang-migrate integration
+- MigrationsPath is configured in DatabaseConfig with default "migrations"
+- Need to integrate migration execution into server startup process
+- Should run migrations before starting HTTP server
+- Must handle migration errors gracefully
+
+**Action:** Modifying server startup to:
+1. Initialize database connection
+2. Run migrations automatically on startup
+3. Add proper error handling and logging
+4. Update configuration to control migration behavior
+5. Ensure migrations run before HTTP server starts
+
+**Implementation Completed:**
+
+**Configuration Changes:**
+- Added `AutoMigrate bool` field to `DatabaseConfig` in `internal/config/config.go`
+- Set default value `auto_migrate: true` in configuration defaults
+- Updated `config.yaml` and `config.yaml.example` with auto-migration setting
+- Added environment variable support: `GLOBECO_PA_DATABASE_AUTO_MIGRATE`
+
+**Server Startup Changes:**
+- Modified `cmd/server/main.go` to include database initialization before server start
+- Added `initializeDatabase()` function that:
+  - Creates database connection
+  - Performs health check
+  - Runs migrations if `AutoMigrate` is enabled
+  - Provides comprehensive logging and error handling
+- Migrations run before HTTP server starts, ensuring database is ready
+
+**Docker Integration:**
+- Updated `Dockerfile` to copy migration files to `/usr/local/share/migrations` in production and CLI images
+- Updated `config.yaml.example` with Docker migration path comments
+- Ensured migrations work in containerized environments
+
+**Kubernetes Integration:**
+- Added `DB_MIGRATIONS_PATH` and `DB_AUTO_MIGRATE` environment variables to deployment
+- Updated `deployments/configmap.yaml` with `DB_AUTO_MIGRATE: "true"` setting
+- Configured proper migration path for Kubernetes containers
+
+**Documentation:**
+- Added comprehensive database migration section to `README.md`
+- Documented auto-migration feature, configuration options, and environment variables
+- Included examples for local development and Docker/Kubernetes deployments
+
+**Build Verification:**
+- Server builds successfully: `go build ./cmd/server` ✅
+- CLI builds successfully: `go build ./cmd/cli` ✅
+- All configuration changes validated
+- Docker and Kubernetes manifests updated
+
+**Features Implemented:**
+- ✅ Automatic migration execution on startup
+- ✅ Configurable auto-migration (can be disabled)
+- ✅ Proper error handling and logging
+- ✅ Docker container support
+- ✅ Kubernetes deployment support
+- ✅ Environment variable configuration
+- ✅ Comprehensive documentation
+
+**Result:** The GlobeCo Portfolio Accounting Service now automatically runs database migrations on startup, ensuring the database schema is always up-to-date. This works seamlessly in local development, Docker containers, and Kubernetes deployments.

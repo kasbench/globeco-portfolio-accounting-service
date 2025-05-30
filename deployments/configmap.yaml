@@ -113,6 +113,7 @@ data:
   DB_MAX_OPEN_CONNS: "25"
   DB_MAX_IDLE_CONNS: "10"
   DB_CONN_MAX_LIFETIME: "300s"
+  DB_AUTO_MIGRATE: "true"
   
   # HTTP server configuration
   SERVER_READ_TIMEOUT: "30s"

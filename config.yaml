@@ -20,6 +20,7 @@ database:
   max_idle_conns: 5
   conn_max_lifetime: "15m"
   migrations_path: "migrations"
+  auto_migrate: true       # Automatically run migrations on startup
 
 cache:
   enabled: true

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
 
@@ -97,6 +98,11 @@ func main() {
 	// Create main context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Initialize database connection and run migrations
+	if err := initializeDatabase(ctx, cfg, appLogger); err != nil {
+		appLogger.Fatal("Failed to initialize database", zap.Error(err))
+	}
 
 	// Initialize and start server
 	if err := runServer(ctx, cfg, appLogger); err != nil {
@@ -274,4 +280,42 @@ func printConfiguration(cfg *config.Config, logger logger.Logger) {
 		zap.Bool("metrics.enabled", cfg.Metrics.Enabled),
 		zap.Bool("tracing.enabled", cfg.Tracing.Enabled),
 	)
+}
+
+// initializeDatabase initializes the database connection and runs migrations
+func initializeDatabase(ctx context.Context, cfg *config.Config, logger logger.Logger) error {
+	logger.Info("Initializing database connection and migrations")
+
+	// Create database connection
+	db, err := database.NewConnection(cfg.Database, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create database connection: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Error("Failed to close database connection", zap.Error(closeErr))
+		}
+	}()
+
+	// Test database connectivity
+	if err := db.HealthCheck(ctx); err != nil {
+		return fmt.Errorf("database health check failed: %w", err)
+	}
+
+	logger.Info("Database connection established successfully")
+
+	// Run migrations if enabled
+	if cfg.Database.AutoMigrate {
+		logger.Info("Auto-migration is enabled, running database migrations")
+
+		if err := db.RunMigrations(); err != nil {
+			return fmt.Errorf("failed to run database migrations: %w", err)
+		}
+
+		logger.Info("Database migrations completed successfully")
+	} else {
+		logger.Info("Auto-migration is disabled, skipping database migrations")
+	}
+
+	return nil
 }

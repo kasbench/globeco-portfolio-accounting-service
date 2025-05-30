@@ -94,6 +94,13 @@ spec:
             configMapKeyRef:
               name: portfolio-accounting-config
               key: DB_CONN_MAX_LIFETIME
+        - name: DB_MIGRATIONS_PATH
+          value: "/usr/local/share/migrations"
+        - name: DB_AUTO_MIGRATE
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: DB_AUTO_MIGRATE
         
         # Cache configuration
         - name: CACHE_TTL

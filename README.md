@@ -422,3 +422,39 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **GlobeCo Portfolio Accounting Service** - Powering financial transaction processing for the GlobeCo benchmarking suite. 🚀
+
+### Database Migrations
+
+The service includes automatic database migration functionality:
+
+#### Auto-Migration
+- **Enabled by default**: Migrations run automatically on service startup
+- **Configuration**: Control via `database.auto_migrate` in config.yaml or `GLOBECO_PA_DATABASE_AUTO_MIGRATE` environment variable
+- **Safe**: Uses golang-migrate library with proper error handling
+- **Containerized**: Works seamlessly in Docker and Kubernetes deployments
+
+#### Manual Migration Commands (Development)
+```bash
+make migrate-up          # Run database migrations
+make migrate-down        # Rollback migrations
+make migrate-create NAME=migration_name  # Create new migration
+```
+
+#### Configuration Options
+```yaml
+database:
+  migrations_path: "migrations"          # For local development
+  # migrations_path: "/usr/local/share/migrations"  # For Docker containers
+  auto_migrate: true                     # Enable/disable auto-migration
+```
+
+#### Environment Variables
+```bash
+# Local development
+export GLOBECO_PA_DATABASE_MIGRATIONS_PATH="migrations"
+export GLOBECO_PA_DATABASE_AUTO_MIGRATE="true"
+
+# Docker containers
+export GLOBECO_PA_DATABASE_MIGRATIONS_PATH="/usr/local/share/migrations"
+export GLOBECO_PA_DATABASE_AUTO_MIGRATE="true"
+```

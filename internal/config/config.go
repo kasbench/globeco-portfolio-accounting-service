@@ -42,6 +42,7 @@ type DatabaseConfig struct {
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
 	MigrationsPath  string        `mapstructure:"migrations_path"`
+	AutoMigrate     bool          `mapstructure:"auto_migrate"`
 }
 
 // CacheConfig holds cache configuration
@@ -157,6 +158,7 @@ func setDefaults() {
 	viper.SetDefault("database.max_idle_conns", 5)
 	viper.SetDefault("database.conn_max_lifetime", "15m")
 	viper.SetDefault("database.migrations_path", "migrations")
+	viper.SetDefault("database.auto_migrate", true)
 
 	// Cache defaults
 	viper.SetDefault("cache.enabled", true)
