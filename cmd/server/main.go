@@ -13,7 +13,50 @@ import (
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
+
+	// Import for swagger docs generation
+	_ "github.com/kasbench/globeco-portfolio-accounting-service/docs"
 )
+
+// @title GlobeCo Portfolio Accounting Service API
+// @version 1.0
+// @description Financial transaction processing and portfolio balance management microservice for GlobeCo benchmarking suite.
+// @description
+// @description This service processes financial transactions and maintains portfolio account balances with:
+// @description - Transaction creation and processing with comprehensive validation
+// @description - Balance calculation and portfolio summary generation
+// @description - Batch transaction processing for file imports
+// @description - Real-time balance updates with optimistic locking
+// @description - Integration with portfolio and security services
+//
+// @contact.name GlobeCo Support
+// @contact.email noah@kasbench.org
+// @contact.url https://github.com/kasbench/globeco-portfolio-accounting-service
+//
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+//
+// @host localhost:8087
+// @BasePath /api/v1
+//
+// @schemes http https
+//
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @description API key for service authentication
+//
+// @tag.name Transactions
+// @tag.description Transaction processing and management endpoints
+//
+// @tag.name Balances
+// @tag.description Portfolio balance and position management endpoints
+//
+// @tag.name Health
+// @tag.description Service health and monitoring endpoints
+//
+// @externalDocs.description GlobeCo Portfolio Accounting Service Documentation
+// @externalDocs.url https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
 
 const (
 	// serviceName is the name of the service

@@ -27,6 +27,7 @@ type RouterDependencies struct {
 	TransactionHandler *handlers.TransactionHandler
 	BalanceHandler     *handlers.BalanceHandler
 	HealthHandler      *handlers.HealthHandler
+	SwaggerHandler     *handlers.SwaggerHandler
 	Logger             logger.Logger
 }
 
@@ -66,6 +67,7 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 	// Setup routes
 	setupHealthRoutes(r, deps.HealthHandler)
 	setupAPIRoutes(r, deps)
+	setupDocumentationRoutes(r, deps.SwaggerHandler)
 	setupMetricsRoute(r, config.EnableMetrics)
 
 	return r
@@ -129,6 +131,22 @@ func setupMetricsRoute(r chi.Router, enableMetrics bool) {
 	}
 }
 
+// setupDocumentationRoutes configures Swagger UI and API documentation endpoints
+func setupDocumentationRoutes(r chi.Router, swaggerHandler *handlers.SwaggerHandler) {
+	// API information endpoint
+	r.Get("/api", swaggerHandler.GetAPIInfo)
+
+	// Swagger UI endpoints
+	r.Get("/swagger/*", swaggerHandler.GetSwaggerUI)
+	r.Get("/swagger", swaggerHandler.RedirectToSwagger)
+
+	// Direct access to OpenAPI spec
+	r.Get("/openapi.json", swaggerHandler.GetOpenAPISpec)
+
+	// Alternative documentation (could add Redoc here in the future)
+	r.Get("/docs", swaggerHandler.RedirectToSwagger)
+}
+
 // SetupV1Router creates a router with only v1 API endpoints (for testing)
 func SetupV1Router(deps RouterDependencies) chi.Router {
 	r := chi.NewRouter()
@@ -171,6 +189,13 @@ func GetAllRoutes() []Route {
 
 		// Metrics endpoint
 		{Method: "GET", Path: "/metrics", Description: "Prometheus metrics"},
+
+		// Documentation endpoints
+		{Method: "GET", Path: "/api", Description: "API information and links"},
+		{Method: "GET", Path: "/swagger", Description: "Redirect to Swagger UI"},
+		{Method: "GET", Path: "/swagger/*", Description: "Swagger UI interface"},
+		{Method: "GET", Path: "/openapi.json", Description: "OpenAPI 3.0 specification"},
+		{Method: "GET", Path: "/docs", Description: "API documentation (redirect to Swagger)"},
 
 		// API v1 endpoints
 		{Method: "GET", Path: "/api/v1/transactions", Description: "Get transactions with filtering"},

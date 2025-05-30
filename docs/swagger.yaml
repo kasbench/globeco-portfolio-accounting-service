@@ -1,0 +1,630 @@
+basePath: /api/v1
+definitions:
+  dto.BalanceDTO:
+    properties:
+      id:
+        type: integer
+      lastUpdated:
+        type: string
+      portfolioId:
+        type: string
+      quantityLong:
+        type: number
+      quantityShort:
+        type: number
+      securityId:
+        type: string
+      version:
+        type: integer
+    type: object
+  dto.BalanceListResponse:
+    properties:
+      balances:
+        items:
+          $ref: '#/definitions/dto.BalanceDTO'
+        type: array
+      pagination:
+        $ref: '#/definitions/dto.PaginationResponse'
+    type: object
+  dto.BatchSummaryDTO:
+    properties:
+      failed:
+        type: integer
+      successRate:
+        type: number
+      successful:
+        type: integer
+      totalRequested:
+        type: integer
+    type: object
+  dto.ErrorDetail:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      message:
+        type: string
+      timestamp:
+        type: string
+      traceId:
+        type: string
+    type: object
+  dto.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/dto.ErrorDetail'
+    type: object
+  dto.HealthResponse:
+    properties:
+      checks:
+        additionalProperties: true
+        type: object
+      environment:
+        type: string
+      status:
+        type: string
+      timestamp:
+        type: string
+      version:
+        type: string
+    type: object
+  dto.PaginationResponse:
+    properties:
+      hasMore:
+        type: boolean
+      limit:
+        type: integer
+      offset:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  dto.PortfolioSummaryDTO:
+    properties:
+      cashBalance:
+        type: number
+      lastUpdated:
+        type: string
+      portfolioId:
+        type: string
+      securities:
+        items:
+          $ref: '#/definitions/dto.SecurityPositionDTO'
+        type: array
+      securityCount:
+        type: integer
+    type: object
+  dto.SecurityPositionDTO:
+    properties:
+      lastUpdated:
+        type: string
+      netQuantity:
+        type: number
+      quantityLong:
+        type: number
+      quantityShort:
+        type: number
+      securityId:
+        type: string
+    type: object
+  dto.TransactionBatchResponse:
+    properties:
+      failed:
+        items:
+          $ref: '#/definitions/dto.TransactionErrorDTO'
+        type: array
+      successful:
+        items:
+          $ref: '#/definitions/dto.TransactionResponseDTO'
+        type: array
+      summary:
+        $ref: '#/definitions/dto.BatchSummaryDTO'
+    type: object
+  dto.TransactionErrorDTO:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/dto.ValidationError'
+        type: array
+      transaction:
+        $ref: '#/definitions/dto.TransactionPostDTO'
+    type: object
+  dto.TransactionListResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/dto.PaginationResponse'
+      transactions:
+        items:
+          $ref: '#/definitions/dto.TransactionResponseDTO'
+        type: array
+    type: object
+  dto.TransactionPostDTO:
+    properties:
+      portfolioId:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      securityId:
+        type: string
+      sourceId:
+        maxLength: 50
+        type: string
+      transactionDate:
+        type: string
+      transactionType:
+        enum:
+        - BUY
+        - SELL
+        - SHORT
+        - COVER
+        - DEP
+        - WD
+        - IN
+        - OUT
+        type: string
+    required:
+    - portfolioId
+    - price
+    - quantity
+    - sourceId
+    - transactionDate
+    - transactionType
+    type: object
+  dto.TransactionResponseDTO:
+    properties:
+      errorMessage:
+        type: string
+      id:
+        type: integer
+      portfolioId:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      reprocessingAttempts:
+        type: integer
+      securityId:
+        type: string
+      sourceId:
+        type: string
+      status:
+        type: string
+      transactionDate:
+        type: string
+      transactionType:
+        type: string
+      version:
+        type: integer
+    type: object
+  dto.ValidationError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+      value:
+        type: string
+    type: object
+host: localhost:8087
+info:
+  contact:
+    email: noah@kasbench.org
+    name: GlobeCo Support
+    url: https://github.com/kasbench/globeco-portfolio-accounting-service
+  description: |-
+    Financial transaction processing and portfolio balance management microservice for GlobeCo benchmarking suite.
+
+    This service processes financial transactions and maintains portfolio account balances with:
+    - Transaction creation and processing with comprehensive validation
+    - Balance calculation and portfolio summary generation
+    - Batch transaction processing for file imports
+    - Real-time balance updates with optimistic locking
+    - Integration with portfolio and security services
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: GlobeCo Portfolio Accounting Service API
+  version: "1.0"
+paths:
+  /balance/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific balance record using its unique ID
+      parameters:
+      - description: Balance ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved balance
+          schema:
+            $ref: '#/definitions/dto.BalanceDTO'
+        "400":
+          description: Invalid balance ID
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get balance by ID
+      tags:
+      - Balances
+  /balances:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve portfolio balances with optional filtering by portfolio,
+        security, and quantity ranges. Supports pagination and sorting.
+      parameters:
+      - description: Filter by portfolio ID (24 characters)
+        in: query
+        name: portfolio_id
+        type: string
+      - description: Filter by security ID (24 characters). Use 'null' for cash balances
+        in: query
+        name: security_id
+        type: string
+      - description: 'Pagination offset (default: 0)'
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      - description: 'Number of records to return (default: 50, max: 1000)'
+        in: query
+        maximum: 1000
+        minimum: 1
+        name: limit
+        type: integer
+      - description: 'Sort fields (comma-separated): portfolio_id,security_id'
+        in: query
+        name: sortby
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved balances
+          schema:
+            $ref: '#/definitions/dto.BalanceListResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get balances with filtering
+      tags:
+      - Balances
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Returns basic service health status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service is healthy
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+        "503":
+          description: Service is unhealthy
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Basic health check
+      tags:
+      - Health
+  /health/detailed:
+    get:
+      consumes:
+      - application/json
+      description: Returns comprehensive health status including database, cache,
+        external services, and system metrics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Detailed health status with all dependency checks
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+        "503":
+          description: Service or dependencies are unhealthy
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Detailed health check with dependencies
+      tags:
+      - Health
+  /health/live:
+    get:
+      consumes:
+      - application/json
+      description: Returns liveness status for Kubernetes health checking (always
+        returns healthy for running service)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service is alive
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+      summary: Kubernetes liveness probe
+      tags:
+      - Health
+  /health/ready:
+    get:
+      consumes:
+      - application/json
+      description: Returns readiness status for Kubernetes traffic routing. Checks
+        database and cache connectivity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Service is ready to receive traffic
+          schema:
+            $ref: '#/definitions/dto.HealthResponse'
+        "503":
+          description: Service is not ready (dependencies unavailable)
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Kubernetes readiness probe
+      tags:
+      - Health
+  /portfolios/{portfolioId}/summary:
+    get:
+      consumes:
+      - application/json
+      description: Get a comprehensive summary of a portfolio including cash balance
+        and all security positions with market values and statistics
+      parameters:
+      - description: Portfolio ID (24 characters)
+        in: path
+        name: portfolioId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved portfolio summary
+          schema:
+            $ref: '#/definitions/dto.PortfolioSummaryDTO'
+        "400":
+          description: Invalid portfolio ID
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Portfolio not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get portfolio summary
+      tags:
+      - Balances
+  /swagger/doc.json:
+    get:
+      consumes:
+      - application/json
+      description: Returns the OpenAPI 3.0 specification in JSON format
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OpenAPI specification
+          schema:
+            additionalProperties: true
+            type: object
+      summary: OpenAPI specification
+      tags:
+      - Documentation
+  /swagger/index.html:
+    get:
+      consumes:
+      - application/json
+      description: Interactive API documentation interface
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Swagger UI HTML page
+          schema:
+            type: string
+      summary: Swagger UI
+      tags:
+      - Documentation
+  /transaction/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific transaction using its unique ID
+      parameters:
+      - description: Transaction ID
+        in: path
+        minimum: 1
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved transaction
+          schema:
+            $ref: '#/definitions/dto.TransactionResponseDTO'
+        "400":
+          description: Invalid transaction ID
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get transaction by ID
+      tags:
+      - Transactions
+  /transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a list of transactions with optional filtering by portfolio,
+        security, date range, transaction type, and status. Supports pagination and
+        sorting.
+      parameters:
+      - description: Filter by portfolio ID (24 characters)
+        in: query
+        name: portfolio_id
+        type: string
+      - description: Filter by security ID (24 characters). Use 'null' for cash transactions
+        in: query
+        name: security_id
+        type: string
+      - description: Filter by transaction date (YYYYMMDD format)
+        in: query
+        name: transaction_date
+        type: string
+      - description: Filter by transaction type
+        enum:
+        - BUY
+        - SELL
+        - SHORT
+        - COVER
+        - DEP
+        - WD
+        - IN
+        - OUT
+        in: query
+        name: transaction_type
+        type: string
+      - description: Filter by transaction status
+        enum:
+        - NEW
+        - PROC
+        - FATAL
+        - ERROR
+        in: query
+        name: status
+        type: string
+      - description: 'Pagination offset (default: 0)'
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      - description: 'Number of records to return (default: 50, max: 1000)'
+        in: query
+        maximum: 1000
+        minimum: 1
+        name: limit
+        type: integer
+      - description: 'Sort fields (comma-separated): portfolio_id,security_id,transaction_date,transaction_type,status'
+        in: query
+        name: sortby
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved transactions
+          schema:
+            $ref: '#/definitions/dto.TransactionListResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get transactions with filtering
+      tags:
+      - Transactions
+    post:
+      consumes:
+      - application/json
+      description: Create and process multiple transactions in a single request. Supports
+        batch processing with individual transaction validation and error reporting.
+      parameters:
+      - description: Array of transactions to create
+        in: body
+        name: transactions
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/dto.TransactionPostDTO'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Batch processing completed (may include partial failures)
+          schema:
+            $ref: '#/definitions/dto.TransactionBatchResponse'
+        "207":
+          description: 'Multi-status: some transactions succeeded, others failed'
+          schema:
+            $ref: '#/definitions/dto.TransactionBatchResponse'
+        "400":
+          description: Invalid request body or validation errors
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "413":
+          description: Request too large (batch size limit exceeded)
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create batch of transactions
+      tags:
+      - Transactions
+schemes:
+- http
+- https
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key for service authentication
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"

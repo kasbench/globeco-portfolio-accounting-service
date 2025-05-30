@@ -28,7 +28,22 @@ func NewBalanceHandler(balanceService services.BalanceService, logger logger.Log
 	}
 }
 
-// GetBalances handles GET /api/v1/balances
+// GetBalances retrieves balances with optional filtering and pagination
+// @Summary Get balances with filtering
+// @Description Retrieve portfolio balances with optional filtering by portfolio, security, and quantity ranges. Supports pagination and sorting.
+// @Tags Balances
+// @Accept json
+// @Produce json
+// @Param portfolio_id query string false "Filter by portfolio ID (24 characters)"
+// @Param security_id query string false "Filter by security ID (24 characters). Use 'null' for cash balances"
+// @Param offset query int false "Pagination offset (default: 0)" minimum(0)
+// @Param limit query int false "Number of records to return (default: 50, max: 1000)" minimum(1) maximum(1000)
+// @Param sortby query string false "Sort fields (comma-separated): portfolio_id,security_id"
+// @Success 200 {object} dto.BalanceListResponse "Successfully retrieved balances"
+// @Failure 400 {object} dto.ErrorResponse "Invalid request parameters"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /balances [get]
 func (h *BalanceHandler) GetBalances(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -70,7 +85,19 @@ func (h *BalanceHandler) GetBalances(w http.ResponseWriter, r *http.Request) {
 		zap.Int("limit", result.Pagination.Limit))
 }
 
-// GetBalanceByID handles GET /api/v1/balance/{id}
+// GetBalanceByID retrieves a specific balance by its ID
+// @Summary Get balance by ID
+// @Description Retrieve a specific balance record using its unique ID
+// @Tags Balances
+// @Accept json
+// @Produce json
+// @Param id path int true "Balance ID" minimum(1)
+// @Success 200 {object} dto.BalanceDTO "Successfully retrieved balance"
+// @Failure 400 {object} dto.ErrorResponse "Invalid balance ID"
+// @Failure 404 {object} dto.ErrorResponse "Balance not found"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /balance/{id} [get]
 func (h *BalanceHandler) GetBalanceByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -120,7 +147,19 @@ func (h *BalanceHandler) GetBalanceByID(w http.ResponseWriter, r *http.Request) 
 	h.logger.Info("Successfully retrieved balance", zap.Int64("id", id))
 }
 
-// GetPortfolioSummary handles GET /api/v1/portfolios/{portfolioId}/summary
+// GetPortfolioSummary retrieves a comprehensive portfolio summary
+// @Summary Get portfolio summary
+// @Description Get a comprehensive summary of a portfolio including cash balance and all security positions with market values and statistics
+// @Tags Balances
+// @Accept json
+// @Produce json
+// @Param portfolioId path string true "Portfolio ID (24 characters)"
+// @Success 200 {object} dto.PortfolioSummaryDTO "Successfully retrieved portfolio summary"
+// @Failure 400 {object} dto.ErrorResponse "Invalid portfolio ID"
+// @Failure 404 {object} dto.ErrorResponse "Portfolio not found"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /portfolios/{portfolioId}/summary [get]
 func (h *BalanceHandler) GetPortfolioSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

@@ -26,6 +26,7 @@ type Server struct {
 	transactionHandler *handlers.TransactionHandler
 	balanceHandler     *handlers.BalanceHandler
 	healthHandler      *handlers.HealthHandler
+	swaggerHandler     *handlers.SwaggerHandler
 }
 
 // NewServer creates a new server instance with simplified dependencies
@@ -61,6 +62,7 @@ func (s *Server) initializeHandlers() error {
 		"1.0.0",       // version
 		"development", // environment
 	)
+	s.swaggerHandler = handlers.NewSwaggerHandler(s.logger)
 
 	s.logger.Info("HTTP handlers initialized")
 	return nil
@@ -88,6 +90,7 @@ func (s *Server) setupHTTPServer() error {
 		TransactionHandler: s.transactionHandler,
 		BalanceHandler:     s.balanceHandler,
 		HealthHandler:      s.healthHandler,
+		SwaggerHandler:     s.swaggerHandler,
 		Logger:             s.logger,
 	}
 

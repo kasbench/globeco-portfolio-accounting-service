@@ -1403,3 +1403,20 @@ Phase 8.1 Containerization implementation complete with comprehensive Docker con
 1. Optimized Dockerfile with better caching
 2. Updated GitHub Actions workflow with platform-specific optimizations
 3. Alternative build strategies for ARM64 architecture
+
+## 2025-01-30 - Swagger UI Integration Request
+
+**Request:** User requested to add Swagger UI to the GlobeCo Portfolio Accounting Service if not currently exposed, or provide the URL if it exists.
+
+**Analysis:** 
+- No existing Swagger UI configuration found in routes or handlers
+- No swagger-related dependencies in go.mod
+- API documentation mentioned in execution plan but not implemented
+- Need to add OpenAPI specification and Swagger UI endpoints
+
+**Action:** Adding comprehensive Swagger UI integration with:
+1. OpenAPI 3.0 specification for all API endpoints
+2. Swagger UI handler for interactive documentation
+3. Redoc alternative documentation
+4. Route configuration for /swagger/ and /redoc endpoints
+5. Dependencies: swaggo/swag, swaggo/http-swagger, swaggo/files

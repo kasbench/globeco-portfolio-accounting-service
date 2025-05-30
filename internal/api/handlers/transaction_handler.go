@@ -28,7 +28,25 @@ func NewTransactionHandler(transactionService services.TransactionService, logge
 	}
 }
 
-// GetTransactions handles GET /api/v1/transactions
+// GetTransactions retrieves transactions with optional filtering, pagination and sorting
+// @Summary Get transactions with filtering
+// @Description Retrieve a list of transactions with optional filtering by portfolio, security, date range, transaction type, and status. Supports pagination and sorting.
+// @Tags Transactions
+// @Accept json
+// @Produce json
+// @Param portfolio_id query string false "Filter by portfolio ID (24 characters)"
+// @Param security_id query string false "Filter by security ID (24 characters). Use 'null' for cash transactions"
+// @Param transaction_date query string false "Filter by transaction date (YYYYMMDD format)"
+// @Param transaction_type query string false "Filter by transaction type" Enums(BUY,SELL,SHORT,COVER,DEP,WD,IN,OUT)
+// @Param status query string false "Filter by transaction status" Enums(NEW,PROC,FATAL,ERROR)
+// @Param offset query int false "Pagination offset (default: 0)" minimum(0)
+// @Param limit query int false "Number of records to return (default: 50, max: 1000)" minimum(1) maximum(1000)
+// @Param sortby query string false "Sort fields (comma-separated): portfolio_id,security_id,transaction_date,transaction_type,status"
+// @Success 200 {object} dto.TransactionListResponse "Successfully retrieved transactions"
+// @Failure 400 {object} dto.ErrorResponse "Invalid request parameters"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /transactions [get]
 func (h *TransactionHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -70,7 +88,19 @@ func (h *TransactionHandler) GetTransactions(w http.ResponseWriter, r *http.Requ
 		zap.Int("limit", result.Pagination.Limit))
 }
 
-// GetTransactionByID handles GET /api/v1/transaction/{id}
+// GetTransactionByID retrieves a specific transaction by its ID
+// @Summary Get transaction by ID
+// @Description Retrieve a specific transaction using its unique ID
+// @Tags Transactions
+// @Accept json
+// @Produce json
+// @Param id path int true "Transaction ID" minimum(1)
+// @Success 200 {object} dto.TransactionResponseDTO "Successfully retrieved transaction"
+// @Failure 400 {object} dto.ErrorResponse "Invalid transaction ID"
+// @Failure 404 {object} dto.ErrorResponse "Transaction not found"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /transaction/{id} [get]
 func (h *TransactionHandler) GetTransactionByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -119,7 +149,20 @@ func (h *TransactionHandler) GetTransactionByID(w http.ResponseWriter, r *http.R
 	h.logger.Info("Successfully retrieved transaction", zap.Int64("id", id))
 }
 
-// CreateTransactions handles POST /api/v1/transactions
+// CreateTransactions processes a batch of transactions
+// @Summary Create batch of transactions
+// @Description Create and process multiple transactions in a single request. Supports batch processing with individual transaction validation and error reporting.
+// @Tags Transactions
+// @Accept json
+// @Produce json
+// @Param transactions body []dto.TransactionPostDTO true "Array of transactions to create"
+// @Success 200 {object} dto.TransactionBatchResponse "Batch processing completed (may include partial failures)"
+// @Success 207 {object} dto.TransactionBatchResponse "Multi-status: some transactions succeeded, others failed"
+// @Failure 400 {object} dto.ErrorResponse "Invalid request body or validation errors"
+// @Failure 413 {object} dto.ErrorResponse "Request too large (batch size limit exceeded)"
+// @Failure 500 {object} dto.ErrorResponse "Internal server error"
+// @Security ApiKeyAuth
+// @Router /transactions [post]
 func (h *TransactionHandler) CreateTransactions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

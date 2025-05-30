@@ -37,7 +37,15 @@ func NewHealthHandler(
 	}
 }
 
-// GetHealth handles GET /health - basic health check
+// GetHealth performs a basic health check
+// @Summary Basic health check
+// @Description Returns basic service health status
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.HealthResponse "Service is healthy"
+// @Failure 503 {object} dto.ErrorResponse "Service is unhealthy"
+// @Router /health [get]
 func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("GET /health",
 		zap.String("user_agent", r.Header.Get("User-Agent")),
@@ -64,6 +72,13 @@ func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLiveness handles GET /health/live - Kubernetes liveness probe
+// @Summary Kubernetes liveness probe
+// @Description Returns liveness status for Kubernetes health checking (always returns healthy for running service)
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.HealthResponse "Service is alive"
+// @Router /health/live [get]
 func (h *HealthHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	h.logger.Debug("GET /health/live",
 		zap.String("user_agent", r.Header.Get("User-Agent")),
@@ -84,7 +99,15 @@ func (h *HealthHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetReadiness handles GET /health/ready - Kubernetes readiness probe
+// GetReadiness performs a Kubernetes readiness probe check
+// @Summary Kubernetes readiness probe
+// @Description Returns readiness status for Kubernetes traffic routing. Checks database and cache connectivity.
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.HealthResponse "Service is ready to receive traffic"
+// @Failure 503 {object} dto.ErrorResponse "Service is not ready (dependencies unavailable)"
+// @Router /health/ready [get]
 func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -153,7 +176,15 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetDetailedHealth handles GET /health/detailed - comprehensive health check
+// GetDetailedHealth performs comprehensive health checks with detailed status
+// @Summary Detailed health check with dependencies
+// @Description Returns comprehensive health status including database, cache, external services, and system metrics
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.HealthResponse "Detailed health status with all dependency checks"
+// @Failure 503 {object} dto.ErrorResponse "Service or dependencies are unhealthy"
+// @Router /health/detailed [get]
 func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
