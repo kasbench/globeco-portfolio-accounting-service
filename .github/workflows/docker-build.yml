@@ -1,17 +1,20 @@
-name: Build and Push Multi-Architecture Docker Images
+name: Production Docker Build (Multi-Architecture)
 
 on:
   push:
     branches:
       - main
-      - develop
-      - 'release/*'
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
-      - develop
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.github/workflows/docker-build.yml'
   schedule:
     # Weekly rebuild on Sundays at 02:00 UTC
     - cron: '0 2 * * 0'
@@ -25,6 +28,11 @@ on:
         description: 'Target platforms (comma-separated)'
         required: false
         default: 'linux/amd64,linux/arm64'
+      build_arm64:
+        description: 'Build ARM64 images'
+        required: false
+        default: true
+        type: boolean
 
 env:
   REGISTRY: docker.io
@@ -32,12 +40,17 @@ env:
   CLI_IMAGE_NAME: kasbench/globeco-portfolio-accounting-service-cli
 
 jobs:
-  build-and-push:
+  # Fast AMD64 build job
+  build-amd64:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
+    outputs:
+      image-digest-server: ${{ steps.build-server.outputs.digest }}
+      image-digest-cli: ${{ steps.build-cli.outputs.digest }}
+      
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -47,7 +60,6 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       with:
-        platforms: linux/amd64,linux/arm64
         driver-opts: network=host
 
     - name: Log in to Docker Hub
@@ -64,24 +76,11 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
-          type=sha,prefix={{branch}}-
-        labels: |
-          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service - Server
-          org.opencontainers.image.description=Financial transaction processing and portfolio balance management microservice server
-          org.opencontainers.image.vendor=KASBench
-          org.opencontainers.image.url=https://github.com/kasbench/globeco-portfolio-accounting-service
-          org.opencontainers.image.documentation=https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
-          org.opencontainers.image.source=https://github.com/kasbench/globeco-portfolio-accounting-service
-          org.opencontainers.image.licenses=MIT
-          maintainer=noah@kasbench.org
-          component=server
+          type=ref,event=branch,suffix=-amd64
+          type=ref,event=pr,suffix=-amd64
+          type=semver,pattern={{version}},suffix=-amd64
+          type=raw,value=latest-amd64,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-amd64-
 
     - name: Extract metadata for CLI
       id: meta-cli
@@ -89,93 +88,184 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
-          type=sha,prefix={{branch}}-
-        labels: |
-          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service - CLI
-          org.opencontainers.image.description=Command-line interface for portfolio accounting transaction file processing
-          org.opencontainers.image.vendor=KASBench
-          org.opencontainers.image.url=https://github.com/kasbench/globeco-portfolio-accounting-service
-          org.opencontainers.image.documentation=https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
-          org.opencontainers.image.source=https://github.com/kasbench/globeco-portfolio-accounting-service
-          org.opencontainers.image.licenses=MIT
-          maintainer=noah@kasbench.org
-          component=cli
+          type=ref,event=branch,suffix=-amd64
+          type=ref,event=pr,suffix=-amd64
+          type=semver,pattern={{version}},suffix=-amd64
+          type=raw,value=latest-amd64,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-amd64-
 
-    - name: Build and push server image
+    - name: Build and push server image (AMD64)
+      id: build-server
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
         target: production
-        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta-server.outputs.tags }}
         labels: ${{ steps.meta-server.outputs.labels }}
-        cache-from: type=gha,scope=server
-        cache-to: type=gha,mode=max,scope=server
+        cache-from: type=gha,scope=server-amd64
+        cache-to: type=gha,mode=max,scope=server-amd64
         build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.version'] }}
+          BUILDPLATFORM=linux/amd64
 
-    - name: Build and push CLI image
+    - name: Build and push CLI image (AMD64)
+      id: build-cli
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
         target: cli
-        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        platforms: linux/amd64
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta-cli.outputs.tags }}
         labels: ${{ steps.meta-cli.outputs.labels }}
-        cache-from: type=gha,scope=cli
-        cache-to: type=gha,mode=max,scope=cli
+        cache-from: type=gha,scope=cli-amd64
+        cache-to: type=gha,mode=max,scope=cli-amd64
         build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.version'] }}
+          BUILDPLATFORM=linux/amd64
 
-    - name: Build and push development image
-      if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+  # ARM64 build job with optimizations
+  build-arm64:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.build_arm64 != 'false'
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-digest-server: ${{ steps.build-server.outputs.digest }}
+      image-digest-cli: ${{ steps.build-cli.outputs.digest }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+        config-inline: |
+          [worker.oci]
+            max-parallelism = 1
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata for server
+      id: meta-server
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch,suffix=-arm64
+          type=ref,event=pr,suffix=-arm64
+          type=semver,pattern={{version}},suffix=-arm64
+          type=raw,value=latest-arm64,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-arm64-
+
+    - name: Extract metadata for CLI
+      id: meta-cli
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch,suffix=-arm64
+          type=ref,event=pr,suffix=-arm64
+          type=semver,pattern={{version}},suffix=-arm64
+          type=raw,value=latest-arm64,enable={{is_default_branch}}
+          type=sha,prefix={{branch}}-arm64-
+
+    - name: Build and push server image (ARM64)
+      id: build-server
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
-        target: development
-        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        target: production
+        platforms: linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:dev-latest
-          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:dev-${{ github.sha }}
+        tags: ${{ steps.meta-server.outputs.tags }}
         labels: ${{ steps.meta-server.outputs.labels }}
-        cache-from: type=gha,scope=dev
-        cache-to: type=gha,mode=max,scope=dev
+        cache-from: type=gha,scope=server-arm64
+        cache-to: type=gha,mode=max,scope=server-arm64
+        build-args: |
+          BUILDPLATFORM=linux/amd64
 
-    - name: Build and push testing image
-      if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+    - name: Build and push CLI image (ARM64)
+      id: build-cli
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
-        target: testing
-        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        target: cli
+        platforms: linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:test-latest
-          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:test-${{ github.sha }}
-        labels: ${{ steps.meta-server.outputs.labels }}
-        cache-from: type=gha,scope=test
-        cache-to: type=gha,mode=max,scope=test
+        tags: ${{ steps.meta-cli.outputs.tags }}
+        labels: ${{ steps.meta-cli.outputs.labels }}
+        cache-from: type=gha,scope=cli-arm64
+        cache-to: type=gha,mode=max,scope=cli-arm64
+        build-args: |
+          BUILDPLATFORM=linux/amd64
+
+  # Create multi-arch manifests
+  create-manifests:
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && !failure()
+    
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Create and push multi-arch manifest for server
+      run: |
+        # Extract tag without architecture suffix
+        TAG_BASE=$(echo "${{ github.ref_name }}" | sed 's/refs\/heads\///')
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          TAG_BASE="latest"
+        fi
+        
+        # Create multi-arch manifest
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:${TAG_BASE} \
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:${TAG_BASE}-amd64 \
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:${TAG_BASE}-arm64
+
+    - name: Create and push multi-arch manifest for CLI
+      run: |
+        # Extract tag without architecture suffix
+        TAG_BASE=$(echo "${{ github.ref_name }}" | sed 's/refs\/heads\///')
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          TAG_BASE="latest"
+        fi
+        
+        # Create multi-arch manifest
+        docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}:${TAG_BASE} \
+          ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}:${TAG_BASE}-amd64 \
+          ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}:${TAG_BASE}-arm64
 
   security-scan:
-    needs: build-and-push
+    needs: [build-amd64]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     strategy:
@@ -195,7 +285,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
+        image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest-amd64
         format: 'sarif'
         output: 'trivy-results-${{ matrix.image }}.sarif'
 
@@ -206,7 +296,7 @@ jobs:
         sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
 
   update-deployment:
-    needs: [build-and-push, security-scan]
+    needs: [create-manifests, security-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -219,22 +309,22 @@ jobs:
     - name: Update image tag in Kubernetes manifests
       run: |
         # Update deployment.yaml with new server image tag
-        sed -i "s|image: .*portfolio-accounting-service.*|image: ${{ env.SERVER_IMAGE_NAME }}:${{ github.sha }}|g" deployments/deployment.yaml
+        sed -i "s|image: .*portfolio-accounting-service.*|image: ${{ env.SERVER_IMAGE_NAME }}:latest|g" deployments/deployment.yaml
         
         # Update kustomization.yaml with new server image
         sed -i "s|name: .*portfolio-accounting-service.*|name: ${{ env.SERVER_IMAGE_NAME }}|g" deployments/kustomization.yaml
-        sed -i "s|newTag: .*|newTag: ${{ github.sha }}|g" deployments/kustomization.yaml
+        sed -i "s|newTag: .*|newTag: latest|g" deployments/kustomization.yaml
 
     - name: Commit and push updated manifests
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add deployments/deployment.yaml deployments/kustomization.yaml
-        git diff --staged --quiet || git commit -m "Update server image tag to ${{ github.sha }}"
+        git diff --staged --quiet || git commit -m "Update server image tag to latest"
         git push
 
   create-release:
-    needs: [build-and-push, security-scan]
+    needs: [create-manifests, security-scan]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     
@@ -278,13 +368,13 @@ jobs:
         prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
 
   notify:
-    needs: [build-and-push, security-scan]
+    needs: [create-manifests, security-scan]
     runs-on: ubuntu-latest
     if: always() && github.ref == 'refs/heads/main'
     
     steps:
     - name: Notify on success
-      if: needs.build-and-push.result == 'success' && needs.security-scan.result == 'success'
+      if: needs.create-manifests.result == 'success' && needs.security-scan.result == 'success'
       run: |
         echo "✅ Successfully built and pushed multi-architecture Docker images"
         echo "🖥️  Server image: ${{ env.SERVER_IMAGE_NAME }}"
@@ -292,7 +382,7 @@ jobs:
         echo "🔒 Security scans passed for both images"
 
     - name: Notify on failure
-      if: needs.build-and-push.result == 'failure' || needs.security-scan.result == 'failure'
+      if: needs.create-manifests.result == 'failure' || needs.security-scan.result == 'failure'
       run: |
         echo "❌ Docker build or security scan failed"
         echo "📋 Check the workflow logs for details"

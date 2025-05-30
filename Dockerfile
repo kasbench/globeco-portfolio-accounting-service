@@ -1,11 +1,12 @@
 # Multi-stage Dockerfile for GlobeCo Portfolio Accounting Service
 # Stage 1: Build environment
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
 # Docker automatic platform arguments
 ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
+ARG BUILDPLATFORM
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -13,22 +14,28 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Set working directory
 WORKDIR /app
 
-# Copy go mod and sum files
+# Copy go mod and sum files first for better layer caching
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with better caching
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
 # Copy source code
 COPY . .
 
-# Build the applications with dynamic architecture
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+# Build with cross-compilation and caching
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
     -o bin/server ./cmd/server
 
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
     -o bin/cli ./cmd/cli
@@ -65,7 +72,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 CMD ["/usr/local/bin/server"]
 
 # Stage 3: Development image with debugging tools
-FROM golang:1.23-alpine AS development
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS development
 
 # Install development tools
 RUN apk add --no-cache \
@@ -81,10 +88,14 @@ RUN apk add --no-cache \
     htop
 
 # Install Air for hot reloading
-RUN go install github.com/cosmtrek/air@latest
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/cosmtrek/air@latest
 
 # Install delve for debugging
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Set working directory
 WORKDIR /app
@@ -93,7 +104,8 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
@@ -114,15 +126,13 @@ EXPOSE 8087 2345
 CMD ["air", "-c", ".air.toml"]
 
 # Stage 4: Testing image
-FROM golang:1.23-alpine AS testing
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS testing
 
 # Install test dependencies
 RUN apk add --no-cache \
     git \
     ca-certificates \
-    tzdata \
-    docker \
-    docker-compose
+    tzdata
 
 # Set working directory
 WORKDIR /app
@@ -130,11 +140,11 @@ WORKDIR /app
 # Copy source code
 COPY . .
 
-# Download dependencies
-RUN go mod download
-
-# Run tests
-RUN go test -v ./...
+# Download dependencies and run tests with caching
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download && \
+    go test -v ./...
 
 # Stage 5: CLI-only image
 FROM alpine:3.19 AS cli
