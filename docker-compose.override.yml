@@ -1,0 +1,183 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+services:
+  # Development-specific PostgreSQL settings
+  postgres:
+    environment:
+      POSTGRES_DB: portfolio_accounting_dev
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5433:5432"  # Use different port to avoid conflicts
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+      - ./scripts/dev-data.sql:/docker-entrypoint-initdb.d/99-dev-data.sql
+    command: >
+      postgres 
+      -c log_statement=all 
+      -c log_destination=stderr 
+      -c log_min_duration_statement=0
+      -c log_connections=on
+      -c log_disconnections=on
+
+  # Development cache with smaller memory footprint
+  hazelcast:
+    environment:
+      JAVA_OPTS: >
+        -Dhazelcast.config=/opt/hazelcast/config/hazelcast-dev.xml
+        -Xms256m
+        -Xmx512m
+        -XX:+UseG1GC
+    volumes:
+      - ./config/hazelcast-dev.xml:/opt/hazelcast/config/hazelcast-dev.xml:ro
+
+  # Development Kafka with more verbose logging
+  kafka:
+    environment:
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: "INFO"
+      KAFKA_TOOLS_LOG4J_LOGLEVEL: "INFO"
+
+  # Main service with development optimizations
+  portfolio-accounting-service:
+    build:
+      target: development
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    environment:
+      # Development database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: portfolio_accounting_dev
+      DATABASE_USER: dev_user
+      DATABASE_PASSWORD: dev_password
+      
+      # Development logging
+      LOG_LEVEL: debug
+      LOG_FORMAT: console  # More readable for development
+      
+      # Development cache settings
+      CACHE_TYPE: hazelcast
+      CACHE_TTL: 60s  # Shorter TTL for development
+      
+      # Development-specific features
+      ENABLE_PPROF: true
+      ENABLE_DEBUG_ENDPOINTS: true
+      HOT_RELOAD: true
+      
+      # File processing for development
+      FILE_PROCESSING_BATCH_SIZE: 100  # Smaller batches for testing
+      FILE_PROCESSING_WORKER_COUNT: 2
+      
+      # External service mocking
+      MOCK_EXTERNAL_SERVICES: true
+      EXTERNAL_SERVICE_TIMEOUT: 5s
+    volumes:
+      - .:/app:cached  # Use cached for better performance on macOS
+      - go_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+      - ./logs:/app/logs
+      - ./tmp:/app/tmp
+    ports:
+      - "8087:8087"
+      - "2345:2345"   # Delve debugger
+      - "6060:6060"   # pprof endpoint
+    stdin_open: true
+    tty: true
+    
+  # Development CLI with additional tools
+  portfolio-accounting-cli:
+    build:
+      target: development
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_NAME: portfolio_accounting_dev
+      DATABASE_USER: dev_user
+      DATABASE_PASSWORD: dev_password
+      LOG_LEVEL: debug
+    volumes:
+      - .:/app:cached
+      - ./test-data:/data:ro
+      - ./output:/output
+      - ./logs:/app/logs
+    working_dir: /app
+    entrypoint: []
+    command: ["tail", "-f", "/dev/null"]  # Keep container running
+
+  # Mock external services for development
+  mock-portfolio-service:
+    image: wiremock/wiremock:3.3.1
+    container_name: mock-portfolio-service
+    ports:
+      - "8001:8080"
+    volumes:
+      - ./mocks/portfolio-service:/home/wiremock/mappings:ro
+    networks:
+      - globeco-network
+    command: ["--global-response-templating", "--verbose"]
+
+  mock-security-service:
+    image: wiremock/wiremock:3.3.1
+    container_name: mock-security-service
+    ports:
+      - "8000:8080"
+    volumes:
+      - ./mocks/security-service:/home/wiremock/mappings:ro
+    networks:
+      - globeco-network
+    command: ["--global-response-templating", "--verbose"]
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:8.2
+    container_name: globeco-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@kasbench.org
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./config/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      - postgres
+    networks:
+      - globeco-network
+
+  # Kafka UI for development
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.1
+    container_name: globeco-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+    networks:
+      - globeco-network
+
+  # Redis for development caching alternative
+  redis:
+    image: redis:7.2-alpine
+    container_name: globeco-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - globeco-network
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  redis_data:
+    driver: local 

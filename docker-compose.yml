@@ -1,0 +1,228 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: globeco-portfolio-accounting-postgresql
+    environment:
+      POSTGRES_DB: portfolio_accounting
+      POSTGRES_USER: portfolio_user
+      POSTGRES_PASSWORD: portfolio_pass
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - globeco-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio_user -d portfolio_accounting"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Hazelcast Cache
+  hazelcast:
+    image: hazelcast/hazelcast:5.3.7
+    container_name: globeco-portfolio-accounting-cache
+    environment:
+      JAVA_OPTS: "-Dhazelcast.config=/opt/hazelcast/config/hazelcast.xml"
+    ports:
+      - "5701:5701"
+    volumes:
+      - ./config/hazelcast.xml:/opt/hazelcast/config/hazelcast.xml:ro
+    networks:
+      - globeco-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5701/hazelcast/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Apache Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.3
+    container_name: globeco-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - globeco-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: globeco-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_DELETE_TOPIC_ENABLE: true
+    networks:
+      - globeco-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Portfolio Service (External)
+  portfolio-service:
+    image: globeco/portfolio-service:latest
+    container_name: globeco-portfolio-service
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgres://portfolio_user:portfolio_pass@postgres:5432/portfolio_accounting
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - globeco-network
+    profiles:
+      - external-services
+
+  # Security Service (External)
+  security-service:
+    image: globeco/security-service:latest
+    container_name: globeco-security-service
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://portfolio_user:portfolio_pass@postgres:5432/portfolio_accounting
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - globeco-network
+    profiles:
+      - external-services
+
+  # Portfolio Accounting Service (Main Application)
+  portfolio-accounting-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: globeco-portfolio-accounting-service
+    ports:
+      - "8087:8087"
+      - "2345:2345"  # Delve debugger
+    environment:
+      # Database Configuration
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: portfolio_accounting
+      DATABASE_USER: portfolio_user
+      DATABASE_PASSWORD: portfolio_pass
+      DATABASE_SSL_MODE: disable
+      DATABASE_MAX_OPEN_CONNS: 10
+      DATABASE_MAX_IDLE_CONNS: 5
+      DATABASE_CONN_MAX_LIFETIME: 300s
+      DATABASE_MIGRATIONS_PATH: /app/migrations
+
+      # Cache Configuration
+      CACHE_TYPE: hazelcast
+      CACHE_HAZELCAST_CLUSTER_MEMBERS: hazelcast:5701
+      CACHE_HAZELCAST_TIMEOUT: 10s
+      CACHE_HAZELCAST_RETRY_COUNT: 3
+
+      # Kafka Configuration
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_GROUP_ID: portfolio-accounting-service
+      KAFKA_AUTO_OFFSET_RESET: earliest
+
+      # External Services
+      PORTFOLIO_SERVICE_URL: http://portfolio-service:8001
+      SECURITY_SERVICE_URL: http://security-service:8000
+      EXTERNAL_SERVICE_TIMEOUT: 30s
+      EXTERNAL_SERVICE_RETRY_COUNT: 3
+
+      # Application Configuration
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8087
+      LOG_LEVEL: debug
+      LOG_FORMAT: json
+      ENVIRONMENT: development
+
+      # File Processing
+      FILE_PROCESSING_BATCH_SIZE: 1000
+      FILE_PROCESSING_WORKER_COUNT: 4
+      FILE_PROCESSING_TIMEOUT: 300s
+    volumes:
+      - .:/app:delegated
+      - go_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    depends_on:
+      postgres:
+        condition: service_healthy
+      hazelcast:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - globeco-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # CLI Service (for file processing)
+  portfolio-accounting-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cli
+    container_name: globeco-portfolio-accounting-cli
+    environment:
+      # Same database and service configuration as main service
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: portfolio_accounting
+      DATABASE_USER: portfolio_user
+      DATABASE_PASSWORD: portfolio_pass
+      DATABASE_SSL_MODE: disable
+      PORTFOLIO_ACCOUNTING_SERVICE_URL: http://portfolio-accounting-service:8087
+    volumes:
+      - ./data:/data:ro
+      - ./output:/output
+    depends_on:
+      portfolio-accounting-service:
+        condition: service_healthy
+    networks:
+      - globeco-network
+    profiles:
+      - cli
+    command: ["--help"]
+
+volumes:
+  postgres_data:
+    driver: local
+  go_cache:
+    driver: local
+  go_build_cache:
+    driver: local
+
+networks:
+  globeco-network:
+    driver: bridge
+    name: globeco-network 

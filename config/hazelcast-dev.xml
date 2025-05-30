@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Development Hazelcast Configuration
+  Optimized for local development with reduced resource usage
+  -->
+
+<hazelcast xmlns="http://www.hazelcast.com/schema/config"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.hazelcast.com/schema/config
+           http://www.hazelcast.com/schema/config/hazelcast-config-5.3.xsd">
+
+    <cluster-name>globeco-dev-cluster</cluster-name>
+
+    <properties>
+        <property name="hazelcast.discovery.enabled">false</property>
+        <property name="hazelcast.shutdownhook.enabled">true</property>
+        <property name="hazelcast.logging.type">slf4j</property>
+        <property name="hazelcast.operation.call.timeout.millis">10000</property>
+        <property name="hazelcast.operation.backup.timeout.millis">3000</property>
+        <property name="hazelcast.heartbeat.interval.seconds">3</property>
+        <property name="hazelcast.max.no.heartbeat.seconds">15</property>
+        <property name="hazelcast.merge.first.run.delay.seconds">60</property>
+        <property name="hazelcast.merge.next.run.delay.seconds">30</property>
+        <property name="hazelcast.initial.min.cluster.size">1</property>
+    </properties>
+
+    <network>
+        <port auto-increment="true" port-count="20">5701</port>
+        <outbound-ports>
+            <ports>0</ports>
+        </outbound-ports>
+        <join>
+            <multicast enabled="false"/>
+            <tcp-ip enabled="true">
+                <interface>127.0.0.1</interface>
+                <member-list>
+                    <member>127.0.0.1:5701</member>
+                </member-list>
+            </tcp-ip>
+            <auto-detection enabled="false"/>
+        </join>
+        <interfaces enabled="false"/>
+        <ssl enabled="false"/>
+        <socket-interceptor enabled="false"/>
+        <symmetric-encryption enabled="false"/>
+    </network>
+
+    <partition-group enabled="false"/>
+
+    <executor-service name="default">
+        <pool-size>4</pool-size>
+        <queue-capacity>0</queue-capacity>
+    </executor-service>
+
+    <security enabled="false"/>
+
+    <member-attributes>
+        <attribute name="CLUSTER_NODE_TYPE">cache-dev</attribute>
+        <attribute name="SERVICE_NAME">globeco-portfolio-accounting-service-dev</attribute>
+        <attribute name="ENVIRONMENT">development</attribute>
+    </member-attributes>
+
+    <!-- Development map configurations with smaller sizes and shorter TTLs -->
+    <map name="portfolios*">
+        <time-to-live-seconds>300</time-to-live-seconds>
+        <max-idle-seconds>120</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">100</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <map name="transactions*">
+        <time-to-live-seconds>600</time-to-live-seconds>
+        <max-idle-seconds>300</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">500</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <map name="balances*">
+        <time-to-live-seconds>300</time-to-live-seconds>
+        <max-idle-seconds>180</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">200</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <map name="external*">
+        <time-to-live-seconds>180</time-to-live-seconds>
+        <max-idle-seconds>60</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">50</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <map name="stats*">
+        <time-to-live-seconds>60</time-to-live-seconds>
+        <max-idle-seconds>30</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">20</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <!-- Development-specific cache for testing -->
+    <map name="test*">
+        <time-to-live-seconds>30</time-to-live-seconds>
+        <max-idle-seconds>15</max-idle-seconds>
+        <eviction-policy>LRU</eviction-policy>
+        <max-size policy="PER_NODE">10</max-size>
+        <backup-count>0</backup-count>
+        <async-backup-count>0</async-backup-count>
+        <read-backup-data>false</read-backup-data>
+    </map>
+
+    <!-- Management Center Configuration for Development -->
+    <management-center 
+        data-access-enabled="true"
+        scripting-enabled="true"/>
+
+    <!-- Health Check Configuration -->
+    <health-monitoring enabled="true" level="SILENT">
+        <delay-seconds>10</delay-seconds>
+    </health-monitoring>
+
+    <!-- Metrics Configuration for Development -->
+    <metrics enabled="true">
+        <management-center enabled="false"/>
+        <jmx enabled="true"/>
+        <collection-frequency-seconds>10</collection-frequency-seconds>
+    </metrics>
+
+    <!-- Advanced Network Configuration -->
+    <advanced-network enabled="false"/>
+
+    <!-- CP Subsystem disabled for development -->
+    <cp-subsystem>
+        <cp-member-count>0</cp-member-count>
+        <group-size>0</group-size>
+    </cp-subsystem>
+
+    <!-- SQL Configuration -->
+    <sql>
+        <statement-timeout-millis>5000</statement-timeout-millis>
+    </sql>
+
+    <!-- Jet Configuration disabled for development -->
+    <jet enabled="false" resource-upload-enabled="false"/>
+
+</hazelcast> 

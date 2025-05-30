@@ -1,0 +1,65 @@
+# Development files
+*.md
+.git/
+.gitignore
+.env
+.env.*
+
+# Documentation
+documentation/
+*.txt
+LICENSE
+
+# Test files
+tests/
+*_test.go
+test-results/
+coverage/
+*.cover
+
+# Build artifacts
+dist/
+build/
+bin/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker files (except for multi-stage builds)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Scripts and tools
+scripts/
+tools/
+Makefile
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Deployment configs (handled separately)
+deployments/
+k8s/
+helm/
+
+# Local development
+.local/
+vendor/ 
