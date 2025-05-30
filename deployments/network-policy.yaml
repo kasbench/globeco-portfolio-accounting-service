@@ -1,0 +1,343 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portfolio-accounting-api-policy
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: api-server
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from ingress controllers
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8087
+  # Allow ingress from other services in the same namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: globeco-portfolio-accounting
+    ports:
+    - protocol: TCP
+      port: 8087
+  # Allow ingress from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8087
+  # Allow health checks from system namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 8087
+  egress:
+  # Allow egress to PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow egress to Hazelcast
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: cache
+    ports:
+    - protocol: TCP
+      port: 5701
+  # Allow egress to external services (Portfolio and Security services)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: globeco-portfolio
+    ports:
+    - protocol: TCP
+      port: 8001
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: globeco-security
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Allow egress to Kafka
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS for external API calls
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-policy
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: database-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: database
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from portfolio accounting service
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: api-server
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow ingress from migration jobs
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: migration
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow ingress from CLI tools for maintenance
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: cli
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hazelcast-policy
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: cache-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: cache
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress from portfolio accounting service
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: api-server
+    ports:
+    - protocol: TCP
+      port: 5701
+    - protocol: TCP
+      port: 8080  # Metrics port
+  # Allow ingress from other Hazelcast nodes for clustering
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: cache
+    ports:
+    - protocol: TCP
+      port: 5701
+    - protocol: TCP
+      port: 5702
+    - protocol: TCP
+      port: 5703
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow egress to other Hazelcast nodes
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: globeco-portfolio-accounting
+          app.kubernetes.io/component: cache
+    ports:
+    - protocol: TCP
+      port: 5701
+    - protocol: TCP
+      port: 5702
+    - protocol: TCP
+      port: 5703
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow Kubernetes API access for service discovery
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-default
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: deny-all-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: monitoring-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow Prometheus scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - namespaceSelector:
+        matchLabels:
+          name: prometheus
+    - namespaceSelector:
+        matchLabels:
+          name: observability
+    ports:
+    - protocol: TCP
+      port: 8087
+    - protocol: TCP
+      port: 8080
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: dns-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution to kube-dns/CoreDNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    - podSelector:
+        matchLabels:
+          k8s-app: coredns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53 

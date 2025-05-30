@@ -1,0 +1,204 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: portfolio-accounting-hpa
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: globeco-suite
+    app.kubernetes.io/managed-by: kubernetes
+  annotations:
+    description: "Horizontal Pod Autoscaler for Portfolio Accounting Service"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: portfolio-accounting-service
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics from Prometheus
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  - type: Pods
+    pods:
+      metric:
+        name: transaction_processing_queue_length
+      target:
+        type: AverageValue
+        averageValue: "50"
+  # External metrics (if available)
+  - type: External
+    external:
+      metric:
+        name: kafka_consumer_lag
+        selector:
+          matchLabels:
+            consumer_group: portfolio-accounting-service
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 4
+        periodSeconds: 30
+      selectPolicy: Max
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hazelcast-hpa
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: cache-autoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: hazelcast
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  # CPU-based scaling for Hazelcast
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  # Memory-based scaling for Hazelcast
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+  # Custom metrics for cache performance
+  - type: Pods
+    pods:
+      metric:
+        name: hazelcast_cache_hit_ratio
+      target:
+        type: AverageValue
+        averageValue: "0.8"  # Scale up if hit ratio drops below 80%
+  - type: Pods
+    pods:
+      metric:
+        name: hazelcast_operations_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600  # Longer stabilization for StatefulSet
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# Vertical Pod Autoscaler (if VPA is available)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: portfolio-accounting-vpa
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: vertical-autoscaler
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: portfolio-accounting-service
+  updatePolicy:
+    updateMode: "Auto"  # or "Off" for recommendation-only mode
+  resourcePolicy:
+    containerPolicies:
+    - containerName: portfolio-accounting
+      maxAllowed:
+        cpu: 2
+        memory: 4Gi
+      minAllowed:
+        cpu: 100m
+        memory: 128Mi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# PodMonitor for custom metrics collection
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: portfolio-accounting-custom-metrics
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: custom-metrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: api-server
+  podMetricsEndpoints:
+  - port: http-api
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    scheme: http
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod_name
+    - sourceLabels: [__meta_kubernetes_pod_node_name]
+      targetLabel: node_name 

@@ -1,0 +1,341 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio-accounting-service
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api-server
+    app.kubernetes.io/part-of: globeco-suite
+    app.kubernetes.io/managed-by: kubernetes
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    description: "GlobeCo Portfolio Accounting Service - Financial transaction processing microservice"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: api-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: globeco-portfolio-accounting
+        app.kubernetes.io/instance: production
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: api-server
+        app.kubernetes.io/part-of: globeco-suite
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8087"
+        prometheus.io/path: "/metrics"
+        linkerd.io/inject: enabled
+        config.linkerd.io/trace-collector: jaeger-collector.observability.svc.cluster.local:14268
+    spec:
+      serviceAccountName: portfolio-accounting
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+      - name: portfolio-accounting
+        image: globeco/portfolio-accounting-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8087
+          name: http-api
+          protocol: TCP
+        env:
+        # Application configuration
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: LOG_LEVEL
+        - name: CONFIG_PATH
+          value: "/etc/portfolio-accounting/config.yaml"
+        
+        # Database configuration
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: DB_HOST
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: DB_PASSWORD
+        - name: DB_MAX_OPEN_CONNS
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: DB_MAX_OPEN_CONNS
+        - name: DB_MAX_IDLE_CONNS
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: DB_MAX_IDLE_CONNS
+        - name: DB_CONN_MAX_LIFETIME
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: DB_CONN_MAX_LIFETIME
+        
+        # Cache configuration
+        - name: CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: CACHE_TTL
+        - name: CACHE_CLUSTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: CACHE_CLUSTER_NAME
+        - name: HAZELCAST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: HAZELCAST_PASSWORD
+        
+        # External service credentials
+        - name: PORTFOLIO_SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: PORTFOLIO_SERVICE_API_KEY
+        - name: SECURITY_SERVICE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: SECURITY_SERVICE_API_KEY
+        - name: PORTFOLIO_SERVICE_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: PORTFOLIO_SERVICE_TIMEOUT
+        - name: SECURITY_SERVICE_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: SECURITY_SERVICE_TIMEOUT
+        
+        # Kafka configuration
+        - name: KAFKA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: KAFKA_USERNAME
+        - name: KAFKA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: KAFKA_PASSWORD
+        - name: KAFKA_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: KAFKA_GROUP_ID
+        - name: KAFKA_AUTO_OFFSET_RESET
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: KAFKA_AUTO_OFFSET_RESET
+        
+        # Server configuration
+        - name: SERVER_READ_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: SERVER_READ_TIMEOUT
+        - name: SERVER_WRITE_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: SERVER_WRITE_TIMEOUT
+        - name: SERVER_IDLE_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: SERVER_IDLE_TIMEOUT
+        
+        # Monitoring configuration
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: METRICS_ENABLED
+        - name: TRACING_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: portfolio-accounting-config
+              key: TRACING_ENABLED
+        - name: METRICS_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: METRICS_AUTH_TOKEN
+        - name: JAEGER_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: JAEGER_AUTH_TOKEN
+        
+        # JWT configuration
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-accounting-secrets
+              key: JWT_SECRET
+        
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/portfolio-accounting
+          readOnly: true
+        - name: tmp-volume
+          mountPath: /tmp
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8087
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8087
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        
+        # Startup probe for slower initialization
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8087
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+          successThreshold: 1
+        
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          capabilities:
+            drop:
+            - ALL
+      
+      volumes:
+      - name: config-volume
+        configMap:
+          name: portfolio-accounting-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: tmp-volume
+        emptyDir: {}
+      
+      # Pod scheduling and placement
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - globeco-portfolio-accounting
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                  - api-server
+              topologyKey: kubernetes.io/hostname
+      
+      # Node selection
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      tolerations:
+      - key: "portfolio-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      # Graceful shutdown
+      terminationGracePeriodSeconds: 30
+      
+      # DNS configuration
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portfolio-accounting
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: service-account
+automountServiceAccountToken: false
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: portfolio-accounting-pdb
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: api-server
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: api-server 

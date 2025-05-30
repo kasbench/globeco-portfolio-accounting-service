@@ -1,0 +1,107 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: portfolio-accounting-service
+  annotations:
+    description: "GlobeCo Portfolio Accounting Service Kubernetes deployment"
+
+namespace: globeco-portfolio-accounting
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: globeco-portfolio-accounting
+  app.kubernetes.io/instance: production
+  app.kubernetes.io/part-of: globeco-suite
+  app.kubernetes.io/managed-by: kustomize
+
+# Common annotations applied to all resources
+commonAnnotations:
+  contact: "noah@kasbench.org"
+  documentation: "https://github.com/kasbench/globeco-portfolio-accounting-service"
+  team: "kasbench"
+
+# Resources to include in the deployment
+resources:
+- namespace.yaml
+- configmap.yaml
+- secrets.yaml
+- postgres.yaml
+- hazelcast.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- hpa.yaml
+- network-policy.yaml
+
+# ConfigMap generators
+configMapGenerator:
+- name: portfolio-accounting-env
+  literals:
+  - APP_ENV=production
+  - LOG_LEVEL=info
+  - METRICS_ENABLED=true
+  - TRACING_ENABLED=true
+
+# Secret generators  
+secretGenerator:
+- name: portfolio-db-credentials
+  literals:
+  - username=portfolio_user
+  - password=portfolio_pass_CHANGEME
+  type: Opaque
+
+# Image transformations
+images:
+- name: globeco/portfolio-accounting-service
+  newTag: v1.0.0
+- name: postgres
+  newTag: 17-alpine
+- name: hazelcast/hazelcast
+  newTag: 5.3.7
+
+# Resource transformations
+replicas:
+- name: portfolio-accounting-service
+  count: 3
+- name: hazelcast
+  count: 3
+
+# Patches for environment-specific customizations
+patches:
+- target:
+    kind: Deployment
+    name: portfolio-accounting-service
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/requests/memory
+      value: "256Mi"
+    - op: replace
+      path: /spec/template/spec/containers/0/resources/limits/memory
+      value: "1Gi"
+
+- target:
+    kind: HorizontalPodAutoscaler
+    name: portfolio-accounting-hpa
+  patch: |-
+    - op: replace
+      path: /spec/minReplicas
+      value: 3
+    - op: replace
+      path: /spec/maxReplicas
+      value: 20
+
+# Namespace creation
+namespace: globeco-portfolio-accounting
+
+# Build metadata
+buildMetadata:
+- buildDate
+- buildUser
+- gitCommit
+- gitBranch
+
+# Generators for additional resources
+generators:
+- migration-job.yaml
+- monitoring-rules.yaml 

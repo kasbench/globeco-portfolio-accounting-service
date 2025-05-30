@@ -1,0 +1,232 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-accounting-ingress
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: globeco-suite
+    app.kubernetes.io/managed-by: kubernetes
+  annotations:
+    # Ingress class and controller
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # SSL and TLS configuration
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+    
+    # Load balancing and upstream configuration
+    nginx.ingress.kubernetes.io/load-balance: "round_robin"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+    nginx.ingress.kubernetes.io/session-cookie-name: "portfolio-session"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "3600"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "100"
+    nginx.ingress.kubernetes.io/rate-limit-burst-multiplier: "5"
+    
+    # Request/response configuration
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, X-Requested-With"
+    nginx.ingress.kubernetes.io/cors-max-age: "3600"
+    
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Content-Type-Options nosniff;
+      add_header X-Frame-Options DENY;
+      add_header X-XSS-Protection "1; mode=block";
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
+      add_header Referrer-Policy "strict-origin-when-cross-origin";
+    
+    # Monitoring and logging
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+spec:
+  tls:
+  - hosts:
+    - portfolio-accounting.globeco.local
+    - portfolio-accounting-api.globeco.local
+    secretName: portfolio-accounting-tls
+  rules:
+  # Main API endpoint
+  - host: portfolio-accounting.globeco.local
+    http:
+      paths:
+      - path: /api/v1(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+      - path: /health(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+      - path: /metrics(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-metrics
+            port:
+              number: 8087
+  
+  # API-specific subdomain
+  - host: portfolio-accounting-api.globeco.local
+    http:
+      paths:
+      - path: /(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+
+---
+# Development/Internal Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-accounting-internal
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: internal-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx-internal"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    
+    # Internal-specific annotations
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "1000"
+    
+    # Internal monitoring access
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Internal-Access "true";
+spec:
+  rules:
+  - host: portfolio-accounting-internal.globeco.local
+    http:
+      paths:
+      - path: /api/v1(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+      - path: /health(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+      - path: /metrics(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-metrics
+            port:
+              number: 8087
+      - path: /debug(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: portfolio-accounting-service
+            port:
+              number: 8087
+
+---
+# Gateway API configuration (alternative to Ingress)
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: portfolio-accounting-route
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: gateway-route
+spec:
+  parentRefs:
+  - name: globeco-gateway
+    namespace: globeco-system
+  hostnames:
+  - "portfolio-accounting.globeco.com"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api/v1
+    backendRefs:
+    - name: portfolio-accounting-service
+      port: 8087
+      weight: 100
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+        - name: X-Service-Name
+          value: portfolio-accounting
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /health
+    backendRefs:
+    - name: portfolio-accounting-service
+      port: 8087
+      weight: 100
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /metrics
+    backendRefs:
+    - name: portfolio-accounting-metrics
+      port: 8087
+      weight: 100
+
+---
+# Certificate for TLS
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: portfolio-accounting-cert
+  namespace: globeco-portfolio-accounting
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: certificate
+spec:
+  secretName: portfolio-accounting-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - portfolio-accounting.globeco.local
+  - portfolio-accounting-api.globeco.local
+  - portfolio-accounting.globeco.com
+  - portfolio-accounting-api.globeco.com 
