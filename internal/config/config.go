@@ -193,7 +193,7 @@ func setDefaults() {
 	viper.SetDefault("tracing.sample_rate", 0.1)
 
 	// External services defaults
-	viper.SetDefault("external.portfolio_service.host", "globeco-portfolio-service-kafka")
+	viper.SetDefault("external.portfolio_service.host", "globeco-portfolio-service")
 	viper.SetDefault("external.portfolio_service.port", 8001)
 	viper.SetDefault("external.portfolio_service.timeout", "30s")
 	viper.SetDefault("external.portfolio_service.max_retries", 3)

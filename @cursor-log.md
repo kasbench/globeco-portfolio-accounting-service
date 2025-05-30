@@ -1602,3 +1602,263 @@ Phase 8.1 Containerization implementation complete with comprehensive Docker con
 - `003_create_indexes.up.sql` ✅ Fixed and now creates all indexes successfully
 
 **Result:** All PostgreSQL migrations are now fully compatible with PostgreSQL 17. The original syntax issue has been resolved and migrations will work correctly in Docker containers.
+
+## 2025-01-30 - Fix Health Endpoint Routing Issue
+
+**Request:** User reported getting 404 error when accessing `/api/v1/health` endpoint. Logs showed: `"path":"/api/v1/health","status_code":404`
+
+**Analysis:** 
+- Health endpoints were configured only at root level: `/health`, `/health/live`, `/health/ready`, `/health/detailed`
+- User expected them to be available under API versioning: `/api/v1/health`
+- Current routing placed health endpoints outside of API v1 structure
+- Need to provide health endpoints in both locations for flexibility
+
+**Action Completed:**
+
+**✅ Added Health Endpoints to API v1:**
+- Added health endpoints under `/api/v1/` route group
+- `/api/v1/health` - Basic health check (API v1)
+- `/api/v1/health/live` - Kubernetes liveness probe (API v1) 
+- `/api/v1/health/ready` - Kubernetes readiness probe (API v1)
+- `/api/v1/health/detailed` - Detailed health check (API v1)
+
+**✅ Maintained Root Level Health Endpoints:**
+- Kept existing root level health endpoints for Kubernetes compatibility
+- `/health` - Basic health check
+- `/health/live` - Kubernetes liveness probe
+- `/health/ready` - Kubernetes readiness probe  
+- `/health/detailed` - Detailed health check
+
+**✅ Updated Route Documentation:**
+- Updated `GetAllRoutes()` function to include both sets of health endpoints
+- Added clear descriptions distinguishing root level vs API v1 health endpoints
+- Comprehensive route documentation for API consumers
+
+**Available Health Endpoints:**
+- **Root Level** (Kubernetes standard): `/health`, `/health/live`, `/health/ready`, `/health/detailed`
+- **API v1** (REST API standard): `/api/v1/health`, `/api/v1/health/live`, `/api/v1/health/ready`, `/api/v1/health/detailed`
+
+**Result:** Health endpoints are now available at both root level (for Kubernetes probes) and under API v1 (for REST API consistency). Users can access health checks via either `/health` or `/api/v1/health` depending on their preference and use case.
+
+## 2025-01-30 - Fix Health Endpoint Panic with Nil Services
+
+**Request:** User reported panic error in `/health/detailed` endpoint with stack trace showing panic in health handler.
+
+**Analysis:** 
+- Health handler was being initialized with `nil` services in `internal/api/server.go`
+- `NewHealthHandler(nil, nil, ...)` - both transaction and balance services were nil
+- When health endpoints called `h.transactionService.GetServiceHealth(ctx)` it caused nil pointer panic
+- Both `/health/ready` and `/health/detailed` endpoints were affected
+- Basic `/health` and `/health/live` endpoints worked because they don't check services
+
+**Root Cause:**
+In `cmd/server/main.go` and `internal/api/server.go`, the server initialization was simplified with TODO comments to "Initialize proper application services in future iterations". The health handler was created with:
+```go
+s.healthHandler = handlers.NewHealthHandler(
+    nil, // transaction service  <- Nil pointer!
+    nil, // balance service      <- Nil pointer!
+    s.logger,
+    "1.0.0",
+    "development",
+)
+```
+
+**Action Completed:**
+
+**✅ Fixed Nil Service Handling in Health Handler:**
+- Updated `GetReadiness()` method to check `if h.transactionService != nil` before calling methods
+- Updated `GetDetailedHealth()` method to check `if h.balanceService != nil` before calling methods
+- Added graceful handling for uninitialized services with clear status messages
+
+**✅ Health Check Responses for Nil Services:**
+- **Not Initialized Status**: Services report `"status": "not_initialized"` when nil
+- **Clear Messages**: Include helpful message `"Transaction service not yet initialized"`
+- **Proper HTTP Status**: Return 503 Service Unavailable when services not ready
+- **Timestamp Tracking**: Include `"checked_at"` timestamp for debugging
+
+**✅ Enhanced Error Handling:**
+- Prevents panic when services are nil
+- Provides informative responses about service initialization state
+- Maintains proper HTTP status codes for monitoring systems
+- Logs appropriate warnings for uninitialized services
+
+**Available Health Endpoints After Fix:**
+- ✅ `/health` - Basic health (always works)
+- ✅ `/health/live` - Liveness probe (always works)  
+- ✅ `/health/ready` - Readiness probe (now handles nil services gracefully)
+- ✅ `/health/detailed` - Detailed health (now handles nil services gracefully)
+- ✅ All endpoints also available under `/api/v1/health*`
+
+**Sample Response for Uninitialized Services:**
+```json
+{
+  "status": "degraded",
+  "timestamp": "2025-01-30T...",
+  "version": "1.0.0",
+  "environment": "development",
+  "checks": {
+    "transaction_service": {
+      "status": "not_initialized",
+      "message": "Transaction service not yet initialized",
+      "checked_at": "2025-01-30T..."
+    },
+    "balance_service": {
+      "status": "not_initialized", 
+      "message": "Balance service not yet initialized",
+      "checked_at": "2025-01-30T..."
+    }
+  }
+}
+```
+
+**Result:** Health endpoints now handle nil services gracefully and provide informative status responses instead of panicking. The service can report its initialization state clearly to monitoring systems and developers.
+
+## 2025-01-30 - Correct Health Check to Verify External Services
+
+**Request:** User clarified that the health check should verify connectivity to external services (portfolio service and security service) instead of internal transaction/balance services that don't exist.
+
+**Analysis:** 
+- Transaction and balance are **endpoints** in this service, not separate services
+- The microservice connects to two external services: portfolio service and security service
+- Health check was incorrectly trying to check `transactionService.GetServiceHealth()` and `balanceService.GetServiceHealth()` 
+- These internal services don't exist - should check external service connectivity instead
+- External clients have `Health(ctx context.Context) error` methods for connectivity testing
+
+**Architectural Clarification:**
+- **Portfolio Accounting Service** (this service) has:
+  - Transaction endpoints: `/api/v1/transactions`, `/api/v1/transaction/{id}`
+  - Balance endpoints: `/api/v1/balances`, `/api/v1/balance/{id}`
+  - External dependencies: Portfolio Service, Security Service
+- **External Services:**
+  - Portfolio Service - provides portfolio data via HTTP API
+  - Security Service - provides security data via HTTP API
+
+**Action Completed:**
+
+**✅ Updated Health Handler Architecture:**
+- Changed `HealthHandler` to use `external.PortfolioClient` and `external.SecurityClient`
+- Updated constructor: `NewHealthHandler(portfolioClient, securityClient, logger, version, environment)`
+- Fixed method calls: `portfolioClient.Health(ctx)` and `securityClient.Health(ctx)`
+- Updated imports to use `internal/infrastructure/external` instead of `internal/application/services`
+
+**✅ Corrected Health Check Logic:**
+- **Portfolio Service Check**: Verifies HTTP connectivity to portfolio service
+- **Security Service Check**: Verifies HTTP connectivity to security service  
+- **Graceful Nil Handling**: Reports "not_initialized" when clients are nil
+- **Proper Error Reporting**: Includes HTTP errors and connection issues
+
+**✅ Updated Swagger Documentation:**
+- `/health/ready`: "Checks external service connectivity (portfolio and security services)"
+- `/health/detailed`: "Returns comprehensive health status including external services connectivity and response times"
+- Removed references to database/cache checks (not implemented yet)
+
+**✅ Server Initialization Updated:**
+- Updated `internal/api/server.go` to pass nil external clients for now
+- Comments clarified: `nil // portfolio client`, `nil // security client`
+- Maintained graceful handling for uninitialized external clients
+
+**Health Check Response Structure:**
+```json
+{
+  "status": "degraded",
+  "timestamp": "2025-01-30T...",
+  "version": "1.0.0",
+  "environment": "development", 
+  "checks": {
+    "portfolio_service": {
+      "status": "not_initialized",
+      "message": "Portfolio service not yet initialized",
+      "checked_at": "2025-01-30T..."
+    },
+    "security_service": {
+      "status": "not_initialized",
+      "message": "Security service not yet initialized", 
+      "checked_at": "2025-01-30T..."
+    }
+  }
+}
+```
+
+**Next Steps for Full Implementation:**
+1. Initialize `external.PortfolioClient` in server startup
+2. Initialize `external.SecurityClient` in server startup  
+3. Configure external service URLs in `config.yaml`
+4. Pass initialized clients to health handler constructor
+
+**Result:** Health checks now correctly verify connectivity to external services (portfolio and security) that this microservice actually depends on, rather than checking non-existent internal services. The architecture properly reflects the external dependencies and service boundaries.
+
+## 2025-01-30 - External Service Client Integration Completed (Steps 2-4)
+
+**Request:** User requested to implement steps 2-4 of external service client integration after completing step 1 (configuring external service URLs in config.yaml).
+
+**Steps Completed:**
+- ✅ Step 2: Initialize portfolio client in server startup
+- ✅ Step 3: Initialize security client in server startup  
+- ✅ Step 4: Pass initialized clients to health handler
+
+**Technical Implementation:**
+
+**✅ External Service Client Initialization:**
+- Added external service client fields to Server struct: `portfolioClient external.PortfolioClient` and `securityClient external.SecurityClient`
+- Created `initializeExternalClients()` method that builds client configurations from the existing config structure
+- Portfolio service client configured with URL: `http://globeco-portfolio-service:8001`
+- Security service client configured with URL: `http://globeco-security-service:8000`
+- All clients use configuration from `config.External` with proper timeout, retry, and circuit breaker settings
+
+**✅ Client Configuration Mapping:**
+- **Portfolio Client**: Uses `config.External.PortfolioService` settings (host, port, timeout, max_retries, retry_backoff, circuit_breaker_threshold)
+- **Security Client**: Uses `config.External.SecurityService` settings with same configuration pattern
+- **HTTP Configuration**: 100 max idle connections, 10 per host, 90s idle timeout for optimal performance
+- **Retry Logic**: Exponential backoff with jitter, configurable max attempts and intervals
+- **Circuit Breaker**: Configurable failure/success thresholds with proper timeout handling
+
+**✅ Health Handler Integration:**
+- Updated `NewHealthHandler()` call to pass real clients instead of `nil`: `handlers.NewHealthHandler(s.portfolioClient, s.securityClient, ...)`
+- Health endpoints now perform actual external service connectivity checks
+- `/health/ready` and `/health/detailed` verify portfolio and security service connectivity
+- Graceful error handling with proper HTTP status codes and informative error messages
+
+**✅ Resource Management:**
+- Added proper client cleanup in `Shutdown()` method
+- External clients are closed gracefully during server shutdown
+- Error logging for cleanup failures without blocking shutdown process
+
+**✅ Server Lifecycle Integration:**
+- External clients initialized before handlers during server startup
+- Proper error propagation if client initialization fails
+- Structured logging for client initialization with service URLs
+- Full integration with existing server configuration and lifecycle
+
+**Health Check Response Examples:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-01-30T...",
+  "version": "1.0.0",
+  "environment": "development",
+  "checks": {
+    "portfolio_service": {
+      "status": "healthy",
+      "checked_at": "2025-01-30T..."
+    },
+    "security_service": {
+      "status": "healthy", 
+      "checked_at": "2025-01-30T..."
+    }
+  }
+}
+```
+
+**Build Verification:**
+- `go build ./internal/api/...` ✅ Compiles successfully
+- `go build ./cmd/server` ✅ Main server application compiles successfully
+- No linter errors or compilation issues
+- All imports and dependencies properly resolved
+
+**Deployment Configuration:**
+- External service configuration already set in `config.yaml` with Docker service names
+- Health checks will verify connectivity to portfolio service (port 8001) and security service (port 8000)
+- Circuit breaker and retry mechanisms provide fault tolerance for external service communication
+- Proper timeout and connection management for production environments
+
+**Result:** External service client integration complete. Health endpoints now perform actual connectivity checks to portfolio and security services, providing real health status based on external dependencies. The service will report healthy only when both external services are accessible and responding correctly.

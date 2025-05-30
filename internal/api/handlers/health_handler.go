@@ -6,34 +6,34 @@ import (
 	"time"
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/application/dto"
-	"github.com/kasbench/globeco-portfolio-accounting-service/internal/application/services"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/external"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
 )
 
 // HealthHandler handles HTTP requests for health check operations
 type HealthHandler struct {
-	transactionService services.TransactionService
-	balanceService     services.BalanceService
-	logger             logger.Logger
-	version            string
-	environment        string
+	portfolioClient external.PortfolioClient
+	securityClient  external.SecurityClient
+	logger          logger.Logger
+	version         string
+	environment     string
 }
 
 // NewHealthHandler creates a new health handler
 func NewHealthHandler(
-	transactionService services.TransactionService,
-	balanceService services.BalanceService,
+	portfolioClient external.PortfolioClient,
+	securityClient external.SecurityClient,
 	logger logger.Logger,
 	version string,
 	environment string,
 ) *HealthHandler {
 	return &HealthHandler{
-		transactionService: transactionService,
-		balanceService:     balanceService,
-		logger:             logger,
-		version:            version,
-		environment:        environment,
+		portfolioClient: portfolioClient,
+		securityClient:  securityClient,
+		logger:          logger,
+		version:         version,
+		environment:     environment,
 	}
 }
 
@@ -101,12 +101,12 @@ func (h *HealthHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 
 // GetReadiness performs a Kubernetes readiness probe check
 // @Summary Kubernetes readiness probe
-// @Description Returns readiness status for Kubernetes traffic routing. Checks database and cache connectivity.
+// @Description Returns readiness status for Kubernetes traffic routing. Checks external service connectivity (portfolio and security services).
 // @Tags Health
 // @Accept json
 // @Produce json
 // @Success 200 {object} dto.HealthResponse "Service is ready to receive traffic"
-// @Failure 503 {object} dto.ErrorResponse "Service is not ready (dependencies unavailable)"
+// @Failure 503 {object} dto.ErrorResponse "Service is not ready (external services unavailable)"
 // @Router /health/ready [get]
 func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -118,32 +118,48 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	checks := make(map[string]interface{})
 	allHealthy := true
 
-	// Check transaction service health
-	if err := h.transactionService.GetServiceHealth(ctx); err != nil {
-		h.logger.Warn("Transaction service health check failed", zap.Error(err))
-		checks["transaction_service"] = map[string]interface{}{
-			"status": "unhealthy",
-			"error":  err.Error(),
+	// Check portfolio service health (handle nil service gracefully)
+	if h.portfolioClient != nil {
+		if err := h.portfolioClient.Health(ctx); err != nil {
+			h.logger.Warn("Portfolio service health check failed", zap.Error(err))
+			checks["portfolio_service"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+			allHealthy = false
+		} else {
+			checks["portfolio_service"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		checks["portfolio_service"] = map[string]interface{}{
+			"status":  "not_initialized",
+			"message": "Portfolio service not yet initialized",
 		}
 		allHealthy = false
-	} else {
-		checks["transaction_service"] = map[string]interface{}{
-			"status": "healthy",
-		}
 	}
 
-	// Check balance service health
-	if err := h.balanceService.GetServiceHealth(ctx); err != nil {
-		h.logger.Warn("Balance service health check failed", zap.Error(err))
-		checks["balance_service"] = map[string]interface{}{
-			"status": "unhealthy",
-			"error":  err.Error(),
+	// Check security service health (handle nil service gracefully)
+	if h.securityClient != nil {
+		if err := h.securityClient.Health(ctx); err != nil {
+			h.logger.Warn("Security service health check failed", zap.Error(err))
+			checks["security_service"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+			allHealthy = false
+		} else {
+			checks["security_service"] = map[string]interface{}{
+				"status": "healthy",
+			}
+		}
+	} else {
+		checks["security_service"] = map[string]interface{}{
+			"status":  "not_initialized",
+			"message": "Security service not yet initialized",
 		}
 		allHealthy = false
-	} else {
-		checks["balance_service"] = map[string]interface{}{
-			"status": "healthy",
-		}
 	}
 
 	status := "ready"
@@ -178,12 +194,12 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 
 // GetDetailedHealth performs comprehensive health checks with detailed status
 // @Summary Detailed health check with dependencies
-// @Description Returns comprehensive health status including database, cache, external services, and system metrics
+// @Description Returns comprehensive health status including external services (portfolio and security services) connectivity and response times
 // @Tags Health
 // @Accept json
 // @Produce json
 // @Success 200 {object} dto.HealthResponse "Detailed health status with all dependency checks"
-// @Failure 503 {object} dto.ErrorResponse "Service or dependencies are unhealthy"
+// @Failure 503 {object} dto.ErrorResponse "Service or external services are unhealthy"
 // @Router /health/detailed [get]
 func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -195,34 +211,52 @@ func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request
 	checks := make(map[string]interface{})
 	allHealthy := true
 
-	// Check transaction service health
-	if err := h.transactionService.GetServiceHealth(ctx); err != nil {
-		checks["transaction_service"] = map[string]interface{}{
-			"status":     "unhealthy",
-			"error":      err.Error(),
+	// Check portfolio service health (handle nil service gracefully)
+	if h.portfolioClient != nil {
+		if err := h.portfolioClient.Health(ctx); err != nil {
+			checks["portfolio_service"] = map[string]interface{}{
+				"status":     "unhealthy",
+				"error":      err.Error(),
+				"checked_at": time.Now(),
+			}
+			allHealthy = false
+		} else {
+			checks["portfolio_service"] = map[string]interface{}{
+				"status":     "healthy",
+				"checked_at": time.Now(),
+			}
+		}
+	} else {
+		checks["portfolio_service"] = map[string]interface{}{
+			"status":     "not_initialized",
+			"message":    "Portfolio service not yet initialized",
 			"checked_at": time.Now(),
 		}
 		allHealthy = false
-	} else {
-		checks["transaction_service"] = map[string]interface{}{
-			"status":     "healthy",
-			"checked_at": time.Now(),
-		}
 	}
 
-	// Check balance service health
-	if err := h.balanceService.GetServiceHealth(ctx); err != nil {
-		checks["balance_service"] = map[string]interface{}{
-			"status":     "unhealthy",
-			"error":      err.Error(),
+	// Check security service health (handle nil service gracefully)
+	if h.securityClient != nil {
+		if err := h.securityClient.Health(ctx); err != nil {
+			checks["security_service"] = map[string]interface{}{
+				"status":     "unhealthy",
+				"error":      err.Error(),
+				"checked_at": time.Now(),
+			}
+			allHealthy = false
+		} else {
+			checks["security_service"] = map[string]interface{}{
+				"status":     "healthy",
+				"checked_at": time.Now(),
+			}
+		}
+	} else {
+		checks["security_service"] = map[string]interface{}{
+			"status":     "not_initialized",
+			"message":    "Security service not yet initialized",
 			"checked_at": time.Now(),
 		}
 		allHealthy = false
-	} else {
-		checks["balance_service"] = map[string]interface{}{
-			"status":     "healthy",
-			"checked_at": time.Now(),
-		}
 	}
 
 	overallStatus := "healthy"

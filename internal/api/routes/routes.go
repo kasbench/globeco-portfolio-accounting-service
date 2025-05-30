@@ -88,6 +88,12 @@ func setupHealthRoutes(r chi.Router, healthHandler *handlers.HealthHandler) {
 func setupAPIRoutes(r chi.Router, deps RouterDependencies) {
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
+		// Health endpoints under API v1
+		r.Get("/health", deps.HealthHandler.GetHealth)
+		r.Get("/health/live", deps.HealthHandler.GetLiveness)
+		r.Get("/health/ready", deps.HealthHandler.GetReadiness)
+		r.Get("/health/detailed", deps.HealthHandler.GetDetailedHealth)
+
 		// Transaction endpoints
 		r.Route("/transactions", func(r chi.Router) {
 			r.Get("/", deps.TransactionHandler.GetTransactions)
@@ -181,11 +187,17 @@ func GetAPIVersion() string {
 // GetAllRoutes returns a list of all configured routes (for documentation)
 func GetAllRoutes() []Route {
 	return []Route{
-		// Health endpoints
+		// Health endpoints (root level)
 		{Method: "GET", Path: "/health", Description: "Basic health check"},
 		{Method: "GET", Path: "/health/live", Description: "Kubernetes liveness probe"},
 		{Method: "GET", Path: "/health/ready", Description: "Kubernetes readiness probe"},
 		{Method: "GET", Path: "/health/detailed", Description: "Detailed health check"},
+
+		// Health endpoints (API v1)
+		{Method: "GET", Path: "/api/v1/health", Description: "Basic health check (API v1)"},
+		{Method: "GET", Path: "/api/v1/health/live", Description: "Kubernetes liveness probe (API v1)"},
+		{Method: "GET", Path: "/api/v1/health/ready", Description: "Kubernetes readiness probe (API v1)"},
+		{Method: "GET", Path: "/api/v1/health/detailed", Description: "Detailed health check (API v1)"},
 
 		// Metrics endpoint
 		{Method: "GET", Path: "/metrics", Description: "Prometheus metrics"},
@@ -198,10 +210,10 @@ func GetAllRoutes() []Route {
 		{Method: "GET", Path: "/docs", Description: "API documentation (redirect to Swagger)"},
 
 		// API v1 endpoints
-		{Method: "GET", Path: "/api/v1/transactions", Description: "Get transactions with filtering"},
-		{Method: "POST", Path: "/api/v1/transactions", Description: "Create batch of transactions"},
+		{Method: "GET", Path: "/api/v1/transactions", Description: "Get transactions"},
+		{Method: "POST", Path: "/api/v1/transactions", Description: "Create transactions"},
 		{Method: "GET", Path: "/api/v1/transaction/{id}", Description: "Get transaction by ID"},
-		{Method: "GET", Path: "/api/v1/balances", Description: "Get balances with filtering"},
+		{Method: "GET", Path: "/api/v1/balances", Description: "Get balances"},
 		{Method: "GET", Path: "/api/v1/balance/{id}", Description: "Get balance by ID"},
 		{Method: "GET", Path: "/api/v1/portfolios/{portfolioId}/summary", Description: "Get portfolio summary"},
 

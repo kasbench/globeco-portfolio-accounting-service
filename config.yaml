@@ -10,11 +10,11 @@ server:
   graceful_shutdown_timeout: "30s"
 
 database:
-  host: "localhost"
+  host: "globeco-portfolio-accounting-service-postgresql"
   port: 5432
-  user: "globeco"
-  password: "password"
-  database: "portfolio_accounting"
+  user: "postgres"
+  password: ""
+  database: "postgres"
   ssl_mode: "disable"
   max_open_conns: 25
   max_idle_conns: 5
@@ -25,7 +25,7 @@ database:
 cache:
   enabled: true
   hosts:
-    - "localhost:5701"
+    - "globeco-portfolio-accounting-service-cache:5701"
   cluster_name: "globeco-portfolio-accounting"
   username: ""
   password: ""
@@ -33,9 +33,9 @@ cache:
   timeout: "5s"
 
 kafka:
-  enabled: true
+  enabled: false
   brokers:
-    - "localhost:9092"
+    - "portfolio-execution-service-kafka:9092"
   topic: "portfolio-accounting-events"
   group_id: "portfolio-accounting-service"
   batch_size: 100
@@ -60,7 +60,7 @@ tracing:
 
 external:
   portfolio_service:
-    host: "globeco-portfolio-service-kafka"
+    host: "globeco-portfolio-service"
     port: 8001
     timeout: "30s"
     max_retries: 3

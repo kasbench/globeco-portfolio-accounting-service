@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/handlers"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/middleware"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/routes"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/external"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -22,18 +24,26 @@ type Server struct {
 	config     *config.Config
 	logger     logger.Logger
 
-	// Handler dependencies (simplified for now)
+	// External service clients
+	portfolioClient external.PortfolioClient
+	securityClient  external.SecurityClient
+
+	// Handler dependencies
 	transactionHandler *handlers.TransactionHandler
 	balanceHandler     *handlers.BalanceHandler
 	healthHandler      *handlers.HealthHandler
 	swaggerHandler     *handlers.SwaggerHandler
 }
 
-// NewServer creates a new server instance with simplified dependencies
+// NewServer creates a new server instance with external service clients
 func NewServer(cfg *config.Config, lg logger.Logger) (*Server, error) {
 	server := &Server{
 		config: cfg,
 		logger: lg,
+	}
+
+	if err := server.initializeExternalClients(); err != nil {
+		return nil, fmt.Errorf("failed to initialize external clients: %w", err)
 	}
 
 	if err := server.initializeHandlers(); err != nil {
@@ -47,6 +57,77 @@ func NewServer(cfg *config.Config, lg logger.Logger) (*Server, error) {
 	return server, nil
 }
 
+// initializeExternalClients initializes external service clients
+func (s *Server) initializeExternalClients() error {
+	s.logger.Info("Initializing external service clients")
+
+	// Create portfolio service client configuration
+	portfolioConfig := external.PortfolioServiceConfig{
+		ClientConfig: external.ClientConfig{
+			BaseURL:             fmt.Sprintf("http://%s:%d", s.config.External.PortfolioService.Host, s.config.External.PortfolioService.Port),
+			Timeout:             s.config.External.PortfolioService.Timeout,
+			MaxIdleConnections:  100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			Retry: external.RetryConfig{
+				MaxAttempts:     s.config.External.PortfolioService.MaxRetries,
+				InitialInterval: s.config.External.PortfolioService.RetryBackoff,
+				MaxInterval:     5 * time.Second,
+				BackoffFactor:   2.0,
+				EnableJitter:    true,
+			},
+			CircuitBreaker: external.CircuitBreakerConfig{
+				FailureThreshold: uint32(s.config.External.PortfolioService.CircuitBreakerThreshold),
+				SuccessThreshold: 3,
+				MaxRequests:      3,
+				Interval:         60 * time.Second,
+				Timeout:          60 * time.Second,
+			},
+			EnableLogging: true,
+		},
+		ServiceName: "portfolio-service",
+	}
+
+	// Create security service client configuration
+	securityConfig := external.SecurityServiceConfig{
+		ClientConfig: external.ClientConfig{
+			BaseURL:             fmt.Sprintf("http://%s:%d", s.config.External.SecurityService.Host, s.config.External.SecurityService.Port),
+			Timeout:             s.config.External.SecurityService.Timeout,
+			MaxIdleConnections:  100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			Retry: external.RetryConfig{
+				MaxAttempts:     s.config.External.SecurityService.MaxRetries,
+				InitialInterval: s.config.External.SecurityService.RetryBackoff,
+				MaxInterval:     5 * time.Second,
+				BackoffFactor:   2.0,
+				EnableJitter:    true,
+			},
+			CircuitBreaker: external.CircuitBreakerConfig{
+				FailureThreshold: uint32(s.config.External.SecurityService.CircuitBreakerThreshold),
+				SuccessThreshold: 3,
+				MaxRequests:      3,
+				Interval:         60 * time.Second,
+				Timeout:          60 * time.Second,
+			},
+			EnableLogging: true,
+		},
+		ServiceName: "security-service",
+	}
+
+	// Initialize portfolio client
+	s.portfolioClient = external.NewPortfolioClient(portfolioConfig, nil, s.logger)
+
+	// Initialize security client
+	s.securityClient = external.NewSecurityClient(securityConfig, nil, s.logger)
+
+	s.logger.Info("External service clients initialized",
+		zap.String("portfolio_service_url", portfolioConfig.BaseURL),
+		zap.String("security_service_url", securityConfig.BaseURL))
+
+	return nil
+}
+
 // initializeHandlers sets up HTTP handlers with minimal dependencies
 func (s *Server) initializeHandlers() error {
 	s.logger.Info("Initializing HTTP handlers")
@@ -56,8 +137,8 @@ func (s *Server) initializeHandlers() error {
 	s.transactionHandler = handlers.NewTransactionHandler(nil, s.logger)
 	s.balanceHandler = handlers.NewBalanceHandler(nil, s.logger)
 	s.healthHandler = handlers.NewHealthHandler(
-		nil, // transaction service
-		nil, // balance service
+		s.portfolioClient,
+		s.securityClient,
 		s.logger,
 		"1.0.0",       // version
 		"development", // environment
@@ -156,7 +237,18 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 
-	// TODO: Add resource cleanup when other services are properly integrated
+	// Close external service clients
+	if s.portfolioClient != nil {
+		if err := s.portfolioClient.Close(); err != nil {
+			s.logger.Error("Failed to close portfolio client", zap.Error(err))
+		}
+	}
+
+	if s.securityClient != nil {
+		if err := s.securityClient.Close(); err != nil {
+			s.logger.Error("Failed to close security client", zap.Error(err))
+		}
+	}
 
 	s.logger.Info("Graceful shutdown completed")
 	return nil
