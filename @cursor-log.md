@@ -1862,3 +1862,58 @@ s.healthHandler = handlers.NewHealthHandler(
 - Proper timeout and connection management for production environments
 
 **Result:** External service client integration complete. Health endpoints now perform actual connectivity checks to portfolio and security services, providing real health status based on external dependencies. The service will report healthy only when both external services are accessible and responding correctly.
+
+## 2025-01-30 - Configurable Health Endpoints for External Services
+
+**Request:** User requested to modify the configuration to call the security service at `http://globeco-security-service:8000/health/liveness` for detailed health checks.
+
+**Technical Implementation:**
+
+**✅ Configuration Structure Updates:**
+- Added `HealthEndpoint string` field to `ServiceConfig` struct in `internal/config/config.go`
+- Added `HealthEndpoint string` field to `ClientConfig` struct in `internal/infrastructure/external/config.go`
+- Updated defaults in `setDefaults()`: portfolio service uses `/health`, security service uses `/health/liveness`
+
+**✅ Client Implementation Updates:**
+- Updated `portfolioClient.Health()` method to use `c.config.HealthEndpoint` instead of hardcoded `/`
+- Updated `securityClient.Health()` method to use `c.config.HealthEndpoint` instead of hardcoded `/`
+- Both clients now construct health check URLs as: `fmt.Sprintf("%s%s", c.config.BaseURL, c.config.HealthEndpoint)`
+
+**✅ Server Configuration Integration:**
+- Updated server initialization to pass `HealthEndpoint` from configuration to external clients
+- Portfolio client configured with `s.config.External.PortfolioService.HealthEndpoint`
+- Security client configured with `s.config.External.SecurityService.HealthEndpoint`
+
+**✅ Configuration Files Updated:**
+- `config.yaml`: Added `health_endpoint: "/health"` for portfolio service, `health_endpoint: "/health/liveness"` for security service
+- `config.yaml.example`: Added same health endpoint configuration for documentation
+
+**Health Check URLs:**
+- **Portfolio Service**: `http://globeco-portfolio-service:8001/health`
+- **Security Service**: `http://globeco-security-service:8000/health/liveness`
+
+**Configuration Example:**
+```yaml
+external:
+  portfolio_service:
+    host: "globeco-portfolio-service"
+    port: 8001
+    health_endpoint: "/health"
+  
+  security_service:
+    host: "globeco-security-service"
+    port: 8000
+    health_endpoint: "/health/liveness"
+```
+
+**Environment Variable Support:**
+- `GLOBECO_PA_EXTERNAL_PORTFOLIO_SERVICE_HEALTH_ENDPOINT="/health"`
+- `GLOBECO_PA_EXTERNAL_SECURITY_SERVICE_HEALTH_ENDPOINT="/health/liveness"`
+
+**Build Verification:**
+- `go build ./internal/infrastructure/external/...` ✅ Compiles successfully
+- `go build ./cmd/server` ✅ Main server application compiles successfully
+- All external client methods updated to use configurable endpoints
+- Health check integration working with custom endpoint paths
+
+**Result:** External service health checks now use configurable endpoints. The security service health check will specifically call `/health/liveness` as requested, while the portfolio service uses the standard `/health` endpoint. This provides flexibility for different external service health check patterns and allows for easy modification without code changes.

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -192,18 +193,49 @@ func (s *StatusChecker) CheckStatus(ctx context.Context, serviceURL string, verb
 		Timestamp: time.Now(),
 	}
 
-	// TODO: Implement comprehensive status checking
-	// - Check basic connectivity
-	// - Call health endpoints
-	// - Check database connectivity
-	// - Check cache connectivity
-	// - Check external services
-	// - Collect metrics
-	s.logger.Debug("Service status check - basic implementation")
+	// Check basic connectivity first
+	reachable, err := s.checkBasicConnectivity(ctx, serviceURL)
+	if err != nil {
+		s.logger.Debug("Service connectivity check failed", zap.Error(err))
+		return status, nil // Return status with reachable=false
+	}
+	status.Reachable = reachable
 
-	// Basic status for now
-	status.Healthy = false
-	status.Reachable = false
+	if !reachable {
+		s.logger.Debug("Service is not reachable")
+		return status, nil
+	}
+
+	// Get detailed health information
+	healthInfo, err := s.getDetailedHealth(ctx, serviceURL)
+	if err != nil {
+		s.logger.Debug("Failed to get detailed health", zap.Error(err))
+		return status, nil
+	}
+
+	// Update status based on health response
+	status.Healthy = (healthInfo.Status == "healthy")
+	status.Version = healthInfo.Version
+	status.Environment = healthInfo.Environment
+
+	// Parse external service checks if available
+	if healthInfo.Checks != nil {
+		if portfolioCheck, exists := healthInfo.Checks["portfolio_service"]; exists {
+			if checkMap, ok := portfolioCheck.(map[string]interface{}); ok {
+				if statusStr, ok := checkMap["status"].(string); ok {
+					status.External.PortfolioService.Available = (statusStr == "healthy")
+				}
+			}
+		}
+
+		if securityCheck, exists := healthInfo.Checks["security_service"]; exists {
+			if checkMap, ok := securityCheck.(map[string]interface{}); ok {
+				if statusStr, ok := checkMap["status"].(string); ok {
+					status.External.SecurityService.Available = (statusStr == "healthy")
+				}
+			}
+		}
+	}
 
 	s.logger.Info("Service status check completed",
 		zap.String("url", serviceURL),
@@ -214,9 +246,45 @@ func (s *StatusChecker) CheckStatus(ctx context.Context, serviceURL string, verb
 	return status, nil
 }
 
+// HealthResponse represents the health endpoint response
+type HealthResponse struct {
+	Status      string                 `json:"status"`
+	Timestamp   string                 `json:"timestamp"`
+	Version     string                 `json:"version"`
+	Environment string                 `json:"environment"`
+	Checks      map[string]interface{} `json:"checks"`
+}
+
+// getDetailedHealth gets detailed health information from the service
+func (s *StatusChecker) getDetailedHealth(ctx context.Context, serviceURL string) (*HealthResponse, error) {
+	healthURL := fmt.Sprintf("%s/health/detailed", serviceURL)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("health endpoint returned status %d", resp.StatusCode)
+	}
+
+	var healthResp HealthResponse
+	if err := json.NewDecoder(resp.Body).Decode(&healthResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &healthResp, nil
+}
+
 // checkBasicConnectivity checks if the service is reachable
 func (s *StatusChecker) checkBasicConnectivity(ctx context.Context, serviceURL string) (bool, error) {
-	healthURL := fmt.Sprintf("%s/api/v1/health", serviceURL)
+	healthURL := fmt.Sprintf("%s/health", serviceURL)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", healthURL, nil)
 	if err != nil {

@@ -130,7 +130,7 @@ func (c *portfolioClient) GetPortfolios(ctx context.Context) (PortfolioListRespo
 
 // Health checks portfolio service health
 func (c *portfolioClient) Health(ctx context.Context) error {
-	url := fmt.Sprintf("%s/", c.config.BaseURL)
+	url := fmt.Sprintf("%s%s", c.config.BaseURL, c.config.HealthEndpoint)
 
 	return c.executeRequest(ctx, "GET", url, nil, nil, "Health")
 }

@@ -69,6 +69,7 @@ func (s *Server) initializeExternalClients() error {
 			MaxIdleConnections:  100,
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     90 * time.Second,
+			HealthEndpoint:      s.config.External.PortfolioService.HealthEndpoint,
 			Retry: external.RetryConfig{
 				MaxAttempts:     s.config.External.PortfolioService.MaxRetries,
 				InitialInterval: s.config.External.PortfolioService.RetryBackoff,
@@ -96,6 +97,7 @@ func (s *Server) initializeExternalClients() error {
 			MaxIdleConnections:  100,
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     90 * time.Second,
+			HealthEndpoint:      s.config.External.SecurityService.HealthEndpoint,
 			Retry: external.RetryConfig{
 				MaxAttempts:     s.config.External.SecurityService.MaxRetries,
 				InitialInterval: s.config.External.SecurityService.RetryBackoff,

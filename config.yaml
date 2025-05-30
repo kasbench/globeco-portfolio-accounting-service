@@ -66,6 +66,7 @@ external:
     max_retries: 3
     retry_backoff: "1s"
     circuit_breaker_threshold: 5
+    health_endpoint: "/health"
   
   security_service:
     host: "globeco-security-service"
@@ -73,4 +74,5 @@ external:
     timeout: "30s"
     max_retries: 3
     retry_backoff: "1s"
-    circuit_breaker_threshold: 5 
+    circuit_breaker_threshold: 5
+    health_endpoint: "/health/liveness" 

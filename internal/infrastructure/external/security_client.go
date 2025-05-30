@@ -162,7 +162,7 @@ func (c *securityClient) GetSecurityTypes(ctx context.Context) (SecurityTypeList
 
 // Health checks security service health
 func (c *securityClient) Health(ctx context.Context) error {
-	url := fmt.Sprintf("%s/", c.config.BaseURL)
+	url := fmt.Sprintf("%s%s", c.config.BaseURL, c.config.HealthEndpoint)
 
 	return c.executeRequest(ctx, "GET", url, nil, nil, "Health")
 }

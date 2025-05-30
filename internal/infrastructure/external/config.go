@@ -14,6 +14,9 @@ type ClientConfig struct {
 	MaxIdleConnsPerHost int           `mapstructure:"max_idle_conns_per_host" json:"max_idle_conns_per_host"`
 	IdleConnTimeout     time.Duration `mapstructure:"idle_conn_timeout" json:"idle_conn_timeout"`
 
+	// Health check endpoint
+	HealthEndpoint string `mapstructure:"health_endpoint" json:"health_endpoint"`
+
 	// Authentication (if needed)
 	APIKey      string `mapstructure:"api_key" json:"api_key,omitempty"`
 	BearerToken string `mapstructure:"bearer_token" json:"bearer_token,omitempty"`

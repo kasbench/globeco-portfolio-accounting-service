@@ -103,6 +103,7 @@ type ServiceConfig struct {
 	MaxRetries              int           `mapstructure:"max_retries"`
 	RetryBackoff            time.Duration `mapstructure:"retry_backoff"`
 	CircuitBreakerThreshold int           `mapstructure:"circuit_breaker_threshold"`
+	HealthEndpoint          string        `mapstructure:"health_endpoint"`
 }
 
 // Load loads configuration from multiple sources
@@ -194,11 +195,12 @@ func setDefaults() {
 
 	// External services defaults
 	viper.SetDefault("external.portfolio_service.host", "globeco-portfolio-service")
-	viper.SetDefault("external.portfolio_service.port", 8001)
+	viper.SetDefault("external.portfolio_service.port", 8000)
 	viper.SetDefault("external.portfolio_service.timeout", "30s")
 	viper.SetDefault("external.portfolio_service.max_retries", 3)
 	viper.SetDefault("external.portfolio_service.retry_backoff", "1s")
 	viper.SetDefault("external.portfolio_service.circuit_breaker_threshold", 5)
+	viper.SetDefault("external.portfolio_service.health_endpoint", "/")
 
 	viper.SetDefault("external.security_service.host", "globeco-security-service")
 	viper.SetDefault("external.security_service.port", 8000)
@@ -206,6 +208,7 @@ func setDefaults() {
 	viper.SetDefault("external.security_service.max_retries", 3)
 	viper.SetDefault("external.security_service.retry_backoff", "1s")
 	viper.SetDefault("external.security_service.circuit_breaker_threshold", 5)
+	viper.SetDefault("external.security_service.health_endpoint", "/health/liveness")
 }
 
 // DatabaseConnectionString returns the database connection string
