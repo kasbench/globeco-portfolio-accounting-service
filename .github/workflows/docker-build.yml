@@ -1,0 +1,259 @@
+name: Build and Push Multi-Architecture Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/*'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Weekly rebuild on Sundays at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Custom tag for the image'
+        required: false
+        default: 'manual'
+      platforms:
+        description: 'Target platforms (comma-separated)'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: globeco/portfolio-accounting-service
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+        driver-opts: network=host
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          # set latest tag for default branch
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+          type=sha,prefix={{branch}}-
+        labels: |
+          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service
+          org.opencontainers.image.description=Financial transaction processing and portfolio balance management microservice
+          org.opencontainers.image.vendor=KASBench
+          org.opencontainers.image.url=https://github.com/kasbench/globeco-portfolio-accounting-service
+          org.opencontainers.image.documentation=https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
+          org.opencontainers.image.source=https://github.com/kasbench/globeco-portfolio-accounting-service
+          org.opencontainers.image.licenses=MIT
+          maintainer=noah@kasbench.org
+
+    - name: Build and push production image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        target: production
+        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+
+    - name: Build and push CLI image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        target: cli
+        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cli-latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cli-${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+
+    - name: Build and push development image
+      if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        target: development
+        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+
+    - name: Build and push testing image
+      if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        target: testing
+        platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  update-deployment:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update image tag in Kubernetes manifests
+      run: |
+        # Update deployment.yaml with new image tag
+        sed -i "s|image: globeco/portfolio-accounting-service:.*|image: globeco/portfolio-accounting-service:${{ github.sha }}|g" deployments/deployment.yaml
+        
+        # Update kustomization.yaml with new image tag
+        sed -i "s|newTag: .*|newTag: ${{ github.sha }}|g" deployments/kustomization.yaml
+
+    - name: Commit and push updated manifests
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add deployments/deployment.yaml deployments/kustomization.yaml
+        git diff --staged --quiet || git commit -m "Update image tag to ${{ github.sha }}"
+        git push
+
+  create-release:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Release ${{ github.ref_name }}
+        body: |
+          ## GlobeCo Portfolio Accounting Service ${{ github.ref_name }}
+          
+          ### Docker Images
+          - Production: `globeco/portfolio-accounting-service:${{ github.ref_name }}`
+          - CLI: `globeco/portfolio-accounting-service:cli-${{ github.sha }}`
+          
+          ### Deployment
+          ```bash
+          # Update image tag in Kubernetes manifests
+          kubectl set image deployment/portfolio-accounting-service portfolio-accounting=globeco/portfolio-accounting-service:${{ github.ref_name }} -n globeco-portfolio-accounting
+          ```
+          
+          ### Changes
+          See [CHANGELOG.md](./CHANGELOG.md) for detailed changes in this release.
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+
+  notify:
+    needs: [build-and-push, security-scan]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify on success
+      if: needs.build-and-push.result == 'success' && needs.security-scan.result == 'success'
+      run: |
+        echo "✅ Successfully built and pushed multi-architecture Docker images"
+        echo "🏷️ Image tags: ${{ needs.build-and-push.outputs.tags }}"
+        echo "🔒 Security scan passed"
+
+    - name: Notify on failure
+      if: needs.build-and-push.result == 'failure' || needs.security-scan.result == 'failure'
+      run: |
+        echo "❌ Docker build or security scan failed"
+        echo "📋 Check the workflow logs for details"
+        exit 1 
