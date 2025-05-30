@@ -47,7 +47,7 @@ spec:
         fsGroup: 65534
       containers:
       - name: portfolio-accounting
-        image: globeco/portfolio-accounting-service:latest
+        image: kasbench/globeco-portfolio-accounting-service-server:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8087

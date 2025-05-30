@@ -28,7 +28,8 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: kasbench/globeco-portfolio-accounting-service
+  SERVER_IMAGE_NAME: kasbench/globeco-portfolio-accounting-service-server
+  CLI_IMAGE_NAME: kasbench/globeco-portfolio-accounting-service-cli
 
 jobs:
   build-and-push:
@@ -57,13 +58,12 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
+    - name: Extract metadata for server
+      id: meta-server
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}
         tags: |
-          # set latest tag for default branch
           type=ref,event=branch
           type=ref,event=pr
           type=semver,pattern={{version}}
@@ -73,16 +73,42 @@ jobs:
           type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
           type=sha,prefix={{branch}}-
         labels: |
-          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service
-          org.opencontainers.image.description=Financial transaction processing and portfolio balance management microservice
+          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service - Server
+          org.opencontainers.image.description=Financial transaction processing and portfolio balance management microservice server
           org.opencontainers.image.vendor=KASBench
           org.opencontainers.image.url=https://github.com/kasbench/globeco-portfolio-accounting-service
           org.opencontainers.image.documentation=https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
           org.opencontainers.image.source=https://github.com/kasbench/globeco-portfolio-accounting-service
           org.opencontainers.image.licenses=MIT
           maintainer=noah@kasbench.org
+          component=server
 
-    - name: Build and push production image
+    - name: Extract metadata for CLI
+      id: meta-cli
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.CLI_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+          type=sha,prefix={{branch}}-
+        labels: |
+          org.opencontainers.image.title=GlobeCo Portfolio Accounting Service - CLI
+          org.opencontainers.image.description=Command-line interface for portfolio accounting transaction file processing
+          org.opencontainers.image.vendor=KASBench
+          org.opencontainers.image.url=https://github.com/kasbench/globeco-portfolio-accounting-service
+          org.opencontainers.image.documentation=https://github.com/kasbench/globeco-portfolio-accounting-service/blob/main/README.md
+          org.opencontainers.image.source=https://github.com/kasbench/globeco-portfolio-accounting-service
+          org.opencontainers.image.licenses=MIT
+          maintainer=noah@kasbench.org
+          component=cli
+
+    - name: Build and push server image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -90,14 +116,14 @@ jobs:
         target: production
         platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        tags: ${{ steps.meta-server.outputs.tags }}
+        labels: ${{ steps.meta-server.outputs.labels }}
+        cache-from: type=gha,scope=server
+        cache-to: type=gha,mode=max,scope=server
         build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          BUILD_DATE=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta-server.outputs.json).labels['org.opencontainers.image.version'] }}
 
     - name: Build and push CLI image
       uses: docker/build-push-action@v5
@@ -107,16 +133,14 @@ jobs:
         target: cli
         platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
         push: ${{ github.event_name != 'pull_request' }}
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cli-latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cli-${{ github.sha }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        tags: ${{ steps.meta-cli.outputs.tags }}
+        labels: ${{ steps.meta-cli.outputs.labels }}
+        cache-from: type=gha,scope=cli
+        cache-to: type=gha,mode=max,scope=cli
         build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          BUILD_DATE=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.revision'] }}
+          VERSION=${{ fromJSON(steps.meta-cli.outputs.json).labels['org.opencontainers.image.version'] }}
 
     - name: Build and push development image
       if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
@@ -128,15 +152,11 @@ jobs:
         platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-${{ github.sha }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:dev-latest
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:dev-${{ github.sha }}
+        labels: ${{ steps.meta-server.outputs.labels }}
+        cache-from: type=gha,scope=dev
+        cache-to: type=gha,mode=max,scope=dev
 
     - name: Build and push testing image
       if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
@@ -148,34 +168,42 @@ jobs:
         platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-${{ github.sha }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:test-latest
+          ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}:test-${{ github.sha }}
+        labels: ${{ steps.meta-server.outputs.labels }}
+        cache-from: type=gha,scope=test
+        cache-to: type=gha,mode=max,scope=test
 
   security-scan:
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        image: [server, cli]
     
     steps:
+    - name: Set image name
+      id: image
+      run: |
+        if [ "${{ matrix.image }}" = "server" ]; then
+          echo "name=${{ env.SERVER_IMAGE_NAME }}" >> $GITHUB_OUTPUT
+        else
+          echo "name=${{ env.CLI_IMAGE_NAME }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
         format: 'sarif'
-        output: 'trivy-results.sarif'
+        output: 'trivy-results-${{ matrix.image }}.sarif'
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
 
   update-deployment:
     needs: [build-and-push, security-scan]
@@ -190,10 +218,11 @@ jobs:
 
     - name: Update image tag in Kubernetes manifests
       run: |
-        # Update deployment.yaml with new image tag
-        sed -i "s|image: globeco/portfolio-accounting-service:.*|image: globeco/portfolio-accounting-service:${{ github.sha }}|g" deployments/deployment.yaml
+        # Update deployment.yaml with new server image tag
+        sed -i "s|image: .*portfolio-accounting-service.*|image: ${{ env.SERVER_IMAGE_NAME }}:${{ github.sha }}|g" deployments/deployment.yaml
         
-        # Update kustomization.yaml with new image tag
+        # Update kustomization.yaml with new server image
+        sed -i "s|name: .*portfolio-accounting-service.*|name: ${{ env.SERVER_IMAGE_NAME }}|g" deployments/kustomization.yaml
         sed -i "s|newTag: .*|newTag: ${{ github.sha }}|g" deployments/kustomization.yaml
 
     - name: Commit and push updated manifests
@@ -201,7 +230,7 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add deployments/deployment.yaml deployments/kustomization.yaml
-        git diff --staged --quiet || git commit -m "Update image tag to ${{ github.sha }}"
+        git diff --staged --quiet || git commit -m "Update server image tag to ${{ github.sha }}"
         git push
 
   create-release:
@@ -224,13 +253,23 @@ jobs:
           ## GlobeCo Portfolio Accounting Service ${{ github.ref_name }}
           
           ### Docker Images
-          - Production: `globeco/portfolio-accounting-service:${{ github.ref_name }}`
-          - CLI: `globeco/portfolio-accounting-service:cli-${{ github.sha }}`
+          - **Server**: `${{ env.SERVER_IMAGE_NAME }}:${{ github.ref_name }}`
+          - **CLI**: `${{ env.CLI_IMAGE_NAME }}:${{ github.ref_name }}`
+          
+          ### Multi-Architecture Support
+          Both images support `linux/amd64` and `linux/arm64` architectures.
           
           ### Deployment
           ```bash
-          # Update image tag in Kubernetes manifests
-          kubectl set image deployment/portfolio-accounting-service portfolio-accounting=globeco/portfolio-accounting-service:${{ github.ref_name }} -n globeco-portfolio-accounting
+          # Update server image in Kubernetes
+          kubectl set image deployment/portfolio-accounting-service \
+            portfolio-accounting=${{ env.SERVER_IMAGE_NAME }}:${{ github.ref_name }} \
+            -n globeco-portfolio-accounting
+          
+          # Run CLI for file processing
+          docker run --rm -v /path/to/data:/data \
+            ${{ env.CLI_IMAGE_NAME }}:${{ github.ref_name }} \
+            process --file /data/transactions.csv
           ```
           
           ### Changes
@@ -248,8 +287,9 @@ jobs:
       if: needs.build-and-push.result == 'success' && needs.security-scan.result == 'success'
       run: |
         echo "✅ Successfully built and pushed multi-architecture Docker images"
-        echo "🏷️ Image tags: ${{ needs.build-and-push.outputs.tags }}"
-        echo "🔒 Security scan passed"
+        echo "🖥️  Server image: ${{ env.SERVER_IMAGE_NAME }}"
+        echo "⌨️  CLI image: ${{ env.CLI_IMAGE_NAME }}"
+        echo "🔒 Security scans passed for both images"
 
     - name: Notify on failure
       if: needs.build-and-push.result == 'failure' || needs.security-scan.result == 'failure'

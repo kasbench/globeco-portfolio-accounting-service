@@ -53,8 +53,8 @@ secretGenerator:
 
 # Image transformations
 images:
-- name: globeco/portfolio-accounting-service
-  newTag: v1.0.0
+- name: kasbench/globeco-portfolio-accounting-service-server
+  newTag: "v1.0.0"
 - name: postgres
   newTag: 17-alpine
 - name: hazelcast/hazelcast
