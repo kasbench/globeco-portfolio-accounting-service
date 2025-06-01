@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 metadata:
-  name: portfolio-accounting-service
+  name: kasbench/globeco-portfolio-accounting-service-server
   annotations:
     description: "GlobeCo Portfolio Accounting Service Kubernetes deployment"
 
@@ -54,15 +54,15 @@ secretGenerator:
 # Image transformations
 images:
 - name: kasbench/globeco-portfolio-accounting-service-server
-  newTag: "v1.0.0"
+  newTag: latest
 - name: postgres
-  newTag: 17-alpine
+  newTag: latest
 - name: hazelcast/hazelcast
-  newTag: 5.3.7
+  newTag: latest
 
 # Resource transformations
 replicas:
-- name: portfolio-accounting-service
+- name: kasbench/globeco-portfolio-accounting-service-server
   count: 3
 - name: hazelcast
   count: 3
@@ -71,7 +71,7 @@ replicas:
 patches:
 - target:
     kind: Deployment
-    name: portfolio-accounting-service
+    name: kasbench/globeco-portfolio-accounting-service-server
   patch: |-
     - op: replace
       path: /spec/template/spec/containers/0/resources/requests/memory
