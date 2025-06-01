@@ -39,6 +39,12 @@ env:
   SERVER_IMAGE_NAME: kasbench/globeco-portfolio-accounting-service-server
   CLI_IMAGE_NAME: kasbench/globeco-portfolio-accounting-service-cli
 
+# Add permissions for security scanning
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 jobs:
   # Fast AMD64 build job
   build-amd64:
@@ -268,11 +274,20 @@ jobs:
     needs: [build-amd64]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     strategy:
       matrix:
         image: [server, cli]
     
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Set image name
       id: image
       run: |
@@ -294,6 +309,7 @@ jobs:
       if: always()
       with:
         sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
+        category: 'trivy-${{ matrix.image }}'
 
   update-deployment:
     needs: [create-manifests, security-scan]

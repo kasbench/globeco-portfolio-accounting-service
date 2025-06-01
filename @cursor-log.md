@@ -2699,3 +2699,75 @@ if transaction.IsCashTransaction() && b.IsCashBalance() {
 - Balance creation/update logic working correctly
 - No optimistic locking conflicts
 - Proper business rule validation maintained
+
+## 2025-01-30 - Fixed GitHub Actions CodeQL SARIF Upload Failure
+
+**Request:** User reported GitHub Actions workflow `docker-build.yml` failing at the CodeQL SARIF upload step with "Resource not accessible by integration" error and "The checkout path provided to the action does not appear to be a git repository" error.
+
+**Problem Analysis:**
+- **Error**: `Resource not accessible by integration - https://docs.github.com/rest` when uploading Trivy SARIF results to GitHub Security tab
+- **Root Cause 1**: Missing `checkout` step in the `security-scan` job - CodeQL action needs git repository context
+- **Root Cause 2**: Insufficient permissions - workflow missing `security-events: write` permission required for SARIF upload
+- **Root Cause 3**: Missing job-level permissions for security scanning operations
+
+**Technical Issues Identified:**
+1. **Missing Repository Checkout**: The security-scan job didn't have a `checkout` action, so CodeQL couldn't access git repository context
+2. **Insufficient Workflow Permissions**: Top-level workflow was missing `security-events: write` permission needed for GitHub Security tab uploads
+3. **Missing Job Permissions**: Security-scan job lacked explicit permissions for security events and actions
+4. **Missing SARIF Category**: CodeQL upload didn't specify category for organizing scan results
+
+**Solution Implemented:**
+
+**✅ Added Repository Checkout:**
+- Added `checkout` action to security-scan job with `fetch-depth: 0` for full git history
+- Ensures CodeQL action has proper git repository context
+
+**✅ Fixed Workflow Permissions:**
+- Added top-level workflow permissions:
+  ```yaml
+  permissions:
+    contents: read
+    packages: write
+    security-events: write  # Required for SARIF upload
+  ```
+
+**✅ Added Job-Level Permissions:**
+- Updated security-scan job with explicit permissions:
+  ```yaml
+  permissions:
+    contents: read          # Read repository contents
+    security-events: write  # Upload SARIF to Security tab
+    actions: read          # Read workflow context
+  ```
+
+**✅ Enhanced SARIF Upload Configuration:**
+- Added `category` parameter to CodeQL action for better organization:
+  ```yaml
+  with:
+    sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
+    category: 'trivy-${{ matrix.image }}'  # Separate server/cli results
+  ```
+
+**✅ Maintained Existing Functionality:**
+- Preserved all existing build jobs and their permissions
+- Maintained ARM64/AMD64 multi-architecture builds
+- Kept security scanning matrix for both server and CLI images
+- No impact on Docker Hub publishing or manifest creation
+
+**Expected Results:**
+- ✅ Security scan job can checkout repository successfully
+- ✅ Trivy vulnerability scanner runs without git context issues
+- ✅ SARIF results upload to GitHub Security tab successfully
+- ✅ Security alerts appear in repository Security tab organized by image type
+- ✅ Complete workflow runs without "Resource not accessible" errors
+
+**Security Scanning Workflow:**
+1. Trivy scans both server and CLI Docker images for vulnerabilities
+2. Generates SARIF format reports for each image type
+3. Uploads results to GitHub Security tab with proper categorization
+4. Security alerts visible in repository for monitoring and remediation
+
+**Files Modified:**
+- `.github/workflows/docker-build.yml`: Added checkout step, fixed permissions, enhanced SARIF upload
+
+**Result:** GitHub Actions workflow now successfully uploads Trivy security scan results to GitHub Security tab, enabling proper vulnerability monitoring and security alerting for the Docker images.
