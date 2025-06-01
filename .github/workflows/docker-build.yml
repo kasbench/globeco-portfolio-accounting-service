@@ -41,7 +41,7 @@ env:
 
 # Add permissions for security scanning
 permissions:
-  contents: read
+  contents: write  # Allow writing to repository (for deployment updates)
   packages: write
   security-events: write
 
@@ -316,6 +316,9 @@ jobs:
     needs: [create-manifests, security-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write  # Need write permissions to push commits
+      pull-requests: write  # In case we need to create PRs in future
     
     steps:
     - name: Checkout repository
