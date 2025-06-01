@@ -199,11 +199,13 @@ func (r *BalanceRepository) Update(ctx context.Context, balance *repositories.Ba
 		RETURNING version, last_updated`
 
 	originalVersion := balance.Version
-	balance.Version++ // Optimistic increment
 
-	rows, err := r.db.NamedQueryContext(ctx, query, balance)
+	// Create a copy of the balance for the query with the original version
+	queryBalance := *balance
+	queryBalance.Version = originalVersion
+
+	rows, err := r.db.NamedQueryContext(ctx, query, &queryBalance)
 	if err != nil {
-		balance.Version = originalVersion // Restore on error
 		if isDuplicateKeyError(err) {
 			return repositories.NewDuplicateKeyError("balance", "portfolio_security", fmt.Sprintf("%s-%v", balance.PortfolioID, balance.SecurityID))
 		}
@@ -212,8 +214,8 @@ func (r *BalanceRepository) Update(ctx context.Context, balance *repositories.Ba
 	defer rows.Close()
 
 	if !rows.Next() {
-		balance.Version = originalVersion // Restore on error
-		return repositories.NewOptimisticLockError("balance", balance.ID, originalVersion, balance.Version)
+		// No rows affected means version mismatch (optimistic locking failure)
+		return repositories.NewOptimisticLockError("balance", balance.ID, originalVersion, originalVersion)
 	}
 
 	if err := rows.Scan(&balance.Version, &balance.LastUpdated); err != nil {

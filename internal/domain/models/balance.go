@@ -284,20 +284,31 @@ func (b *Balance) ApplyTransactionImpact(transaction *Transaction) (*Balance, er
 	newLongQuantity := b.quantityLong
 	newShortQuantity := b.quantityShort
 
-	// Apply long units impact
-	switch impact.LongUnits {
-	case ImpactIncrease:
-		newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Add(quantity.Amount)}
-	case ImpactDecrease:
-		newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Sub(quantity.Amount)}
-	}
+	// For cash transactions, apply cash impact to long quantity
+	if transaction.IsCashTransaction() && b.IsCashBalance() {
+		switch impact.Cash {
+		case ImpactIncrease:
+			newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Add(quantity.Amount)}
+		case ImpactDecrease:
+			newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Sub(quantity.Amount)}
+		}
+	} else {
+		// For security transactions, apply long/short units impacts
+		// Apply long units impact
+		switch impact.LongUnits {
+		case ImpactIncrease:
+			newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Add(quantity.Amount)}
+		case ImpactDecrease:
+			newLongQuantity = Quantity{Amount: newLongQuantity.Amount.Sub(quantity.Amount)}
+		}
 
-	// Apply short units impact
-	switch impact.ShortUnits {
-	case ImpactIncrease:
-		newShortQuantity = Quantity{Amount: newShortQuantity.Amount.Add(quantity.Amount)}
-	case ImpactDecrease:
-		newShortQuantity = Quantity{Amount: newShortQuantity.Amount.Sub(quantity.Amount)}
+		// Apply short units impact
+		switch impact.ShortUnits {
+		case ImpactIncrease:
+			newShortQuantity = Quantity{Amount: newShortQuantity.Amount.Add(quantity.Amount)}
+		case ImpactDecrease:
+			newShortQuantity = Quantity{Amount: newShortQuantity.Amount.Sub(quantity.Amount)}
+		}
 	}
 
 	// Create new balance with updated quantities

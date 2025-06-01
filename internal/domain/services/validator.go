@@ -284,7 +284,7 @@ func (v *TransactionValidator) validateSourceIDUniqueness(ctx context.Context, t
 	existingTransaction, err := v.transactionRepo.GetBySourceID(ctx, sourceID)
 
 	if err != nil && !repositories.IsNotFoundError(err) {
-		// Log the error but don't fail validation due to repository issues
+		// Only log actual errors, not "not found" which is the expected case for unique source IDs
 		v.logger.Error("Failed to check source ID uniqueness",
 			logger.String("sourceId", sourceID),
 			logger.Err(err))
@@ -302,6 +302,11 @@ func (v *TransactionValidator) validateSourceIDUniqueness(ctx context.Context, t
 			})
 		}
 	}
+
+	// Log successful uniqueness validation at debug level
+	v.logger.Debug("Source ID uniqueness validated",
+		logger.String("sourceId", sourceID),
+		logger.Bool("unique", existingTransaction == nil))
 
 	return errors
 }

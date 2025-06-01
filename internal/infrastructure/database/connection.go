@@ -216,11 +216,20 @@ func (db *DB) GetContext(ctx context.Context, dest interface{}, query string, ar
 	duration := time.Since(start)
 
 	if err != nil {
-		db.logger.Error("Database query failed",
-			logger.String("query", query),
-			logger.Duration("duration", duration),
-			logger.Err(err),
-		)
+		// sql.ErrNoRows is often expected (uniqueness checks, optional records)
+		// Log it at debug level instead of error level
+		if err == sql.ErrNoRows {
+			db.logger.Debug("Database query returned no rows (expected for some queries)",
+				logger.String("query", query),
+				logger.Duration("duration", duration),
+			)
+		} else {
+			db.logger.Error("Database query failed",
+				logger.String("query", query),
+				logger.Duration("duration", duration),
+				logger.Err(err),
+			)
+		}
 	} else {
 		db.logger.Debug("Database query executed",
 			logger.String("query", query),
