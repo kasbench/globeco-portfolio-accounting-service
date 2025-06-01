@@ -85,6 +85,18 @@ test-integration:
 	@echo "Running integration tests..."
 	$(GOTEST) -v -race ./tests/...
 
+## test-api-integration: Run API integration tests that catch service initialization bugs
+.PHONY: test-api-integration
+test-api-integration:
+	@echo "Running API integration tests..."
+	$(GOTEST) -v -race ./tests/integration/api_integration_test.go ./tests/integration/database_integration_test.go
+
+## test-database-integration: Run database integration tests only
+.PHONY: test-database-integration
+test-database-integration:
+	@echo "Running database integration tests..."
+	$(GOTEST) -v -race ./tests/integration/database_integration_test.go
+
 ## coverage: Generate test coverage report
 .PHONY: coverage
 coverage: test

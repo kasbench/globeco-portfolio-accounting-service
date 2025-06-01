@@ -12,7 +12,13 @@ import (
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/handlers"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/middleware"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/routes"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/application/mappers"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/application/services"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/domain/repositories"
+	domainServices "github.com/kasbench/globeco-portfolio-accounting-service/internal/domain/services"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database/postgresql"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/external"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
@@ -24,9 +30,25 @@ type Server struct {
 	config     *config.Config
 	logger     logger.Logger
 
+	// Database
+	db *database.DB
+
 	// External service clients
 	portfolioClient external.PortfolioClient
 	securityClient  external.SecurityClient
+
+	// Repositories
+	transactionRepo repositories.TransactionRepository
+	balanceRepo     repositories.BalanceRepository
+
+	// Domain services
+	transactionValidator *domainServices.TransactionValidator
+	transactionProcessor *domainServices.TransactionProcessor
+	balanceCalculator    *domainServices.BalanceCalculator
+
+	// Application services
+	transactionService services.TransactionService
+	balanceService     services.BalanceService
 
 	// Handler dependencies
 	transactionHandler *handlers.TransactionHandler
@@ -42,8 +64,24 @@ func NewServer(cfg *config.Config, lg logger.Logger) (*Server, error) {
 		logger: lg,
 	}
 
+	if err := server.initializeDatabase(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
 	if err := server.initializeExternalClients(); err != nil {
 		return nil, fmt.Errorf("failed to initialize external clients: %w", err)
+	}
+
+	if err := server.initializeRepositories(); err != nil {
+		return nil, fmt.Errorf("failed to initialize repositories: %w", err)
+	}
+
+	if err := server.initializeDomainServices(); err != nil {
+		return nil, fmt.Errorf("failed to initialize domain services: %w", err)
+	}
+
+	if err := server.initializeApplicationServices(); err != nil {
+		return nil, fmt.Errorf("failed to initialize application services: %w", err)
 	}
 
 	if err := server.initializeHandlers(); err != nil {
@@ -55,6 +93,28 @@ func NewServer(cfg *config.Config, lg logger.Logger) (*Server, error) {
 	}
 
 	return server, nil
+}
+
+// initializeDatabase initializes database connection
+func (s *Server) initializeDatabase() error {
+	s.logger.Info("Initializing database connection")
+
+	db, err := database.NewConnection(s.config.Database, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create database connection: %w", err)
+	}
+
+	// Test database connectivity
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := db.HealthCheck(ctx); err != nil {
+		return fmt.Errorf("database health check failed: %w", err)
+	}
+
+	s.db = db
+	s.logger.Info("Database connection initialized successfully")
+	return nil
 }
 
 // initializeExternalClients initializes external service clients
@@ -130,14 +190,95 @@ func (s *Server) initializeExternalClients() error {
 	return nil
 }
 
-// initializeHandlers sets up HTTP handlers with minimal dependencies
+// initializeRepositories initializes repositories
+func (s *Server) initializeRepositories() error {
+	s.logger.Info("Initializing repositories")
+
+	// Initialize transaction repository
+	s.transactionRepo = postgresql.NewTransactionRepository(s.db, s.logger)
+
+	// Initialize balance repository
+	s.balanceRepo = postgresql.NewBalanceRepository(s.db, s.logger)
+
+	s.logger.Info("Repositories initialized")
+	return nil
+}
+
+// initializeDomainServices initializes domain services
+func (s *Server) initializeDomainServices() error {
+	s.logger.Info("Initializing domain services")
+
+	// Initialize transaction validator
+	s.transactionValidator = domainServices.NewTransactionValidator(s.transactionRepo, s.balanceRepo, s.logger)
+
+	// Initialize balance calculator
+	s.balanceCalculator = domainServices.NewBalanceCalculator(s.balanceRepo, s.logger)
+
+	// Initialize transaction processor
+	s.transactionProcessor = domainServices.NewTransactionProcessor(
+		s.transactionRepo,
+		s.balanceRepo,
+		s.transactionValidator,
+		s.balanceCalculator,
+		s.logger,
+	)
+
+	s.logger.Info("Domain services initialized")
+	return nil
+}
+
+// initializeApplicationServices initializes application services
+func (s *Server) initializeApplicationServices() error {
+	s.logger.Info("Initializing application services")
+
+	// Initialize mappers
+	transactionMapper := mappers.NewTransactionMapper()
+	balanceMapper := mappers.NewBalanceMapper()
+
+	// Initialize transaction service
+	transactionServiceConfig := services.TransactionServiceConfig{
+		MaxBatchSize:          1000,
+		ProcessingTimeout:     30 * time.Second,
+		EnableAsyncProcessing: false,
+	}
+
+	s.transactionService = services.NewTransactionService(
+		s.transactionRepo,
+		s.balanceRepo,
+		*s.transactionProcessor,
+		*s.transactionValidator,
+		transactionMapper,
+		transactionServiceConfig,
+		s.logger,
+	)
+
+	// Initialize balance service
+	balanceServiceConfig := services.BalanceServiceConfig{
+		MaxBulkUpdateSize:    1000,
+		CacheTimeout:         15 * time.Minute,
+		HistoryRetentionDays: 90,
+	}
+
+	s.balanceService = services.NewBalanceService(
+		s.balanceRepo,
+		s.transactionRepo,
+		*s.balanceCalculator,
+		balanceMapper,
+		balanceServiceConfig,
+		s.logger,
+	)
+
+	s.logger.Info("Application services initialized")
+	return nil
+}
+
+// initializeHandlers sets up HTTP handlers with proper dependencies
 func (s *Server) initializeHandlers() error {
 	s.logger.Info("Initializing HTTP handlers")
 
-	// For now, create handlers with nil services - they will handle gracefully
-	// TODO: Initialize proper application services in future iterations
-	s.transactionHandler = handlers.NewTransactionHandler(nil, s.logger)
-	s.balanceHandler = handlers.NewBalanceHandler(nil, s.logger)
+	// Initialize handlers with proper services
+	s.transactionHandler = handlers.NewTransactionHandler(s.transactionService, s.logger)
+	s.balanceHandler = handlers.NewBalanceHandler(s.balanceService, s.logger)
 	s.healthHandler = handlers.NewHealthHandler(
 		s.portfolioClient,
 		s.securityClient,
@@ -162,10 +303,9 @@ func (s *Server) setupHTTPServer() error {
 	routerConfig := routes.Config{
 		ServiceName:   "globeco-portfolio-accounting-service",
 		Version:       "1.0.0",
-		Environment:   "development",
+		CORSConfig:    corsConfig,
 		EnableMetrics: true,
 		EnableCORS:    true,
-		CORSConfig:    corsConfig,
 	}
 
 	// Setup router dependencies
@@ -177,13 +317,12 @@ func (s *Server) setupHTTPServer() error {
 		Logger:             s.logger,
 	}
 
-	// Create router
+	// Create router with handlers
 	router := routes.SetupRouter(routerConfig, routerDeps)
 
-	// Configure HTTP server
-	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
+	// Create HTTP server
 	s.httpServer = &http.Server{
-		Addr:         addr,
+		Addr:         fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port),
 		Handler:      router,
 		ReadTimeout:  s.config.Server.ReadTimeout,
 		WriteTimeout: s.config.Server.WriteTimeout,
@@ -191,7 +330,7 @@ func (s *Server) setupHTTPServer() error {
 	}
 
 	s.logger.Info("HTTP server configured",
-		zap.String("address", addr))
+		zap.String("address", s.httpServer.Addr))
 
 	return nil
 }
@@ -201,27 +340,34 @@ func (s *Server) Start(ctx context.Context) error {
 	s.logger.Info("Starting HTTP server",
 		zap.String("address", s.httpServer.Addr))
 
-	// Start server in goroutine
-	serverErr := make(chan error, 1)
+	// Channel to listen for interrupt signal to gracefully shutdown the server
+	serverErrors := make(chan error, 1)
+
+	// Start server in a goroutine
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("server failed to start: %w", err)
-		}
+		serverErrors <- s.httpServer.ListenAndServe()
 	}()
 
-	// Wait for interrupt signal or server error
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	// Channel to listen for interrupt signal to gracefully shutdown the server
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
+	// Block until we receive our signal or an error from the server
 	select {
-	case err := <-serverErr:
-		return err
-	case sig := <-stop:
-		s.logger.Info("Received shutdown signal", zap.String("signal", sig.String()))
-		return s.Shutdown(ctx)
-	case <-ctx.Done():
-		s.logger.Info("Context cancelled, shutting down")
-		return s.Shutdown(ctx)
+	case err := <-serverErrors:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("server failed to start: %w", err)
+		}
+		return nil
+	case sig := <-shutdown:
+		s.logger.Info("Received shutdown signal",
+			zap.String("signal", sig.String()))
+
+		// Give outstanding requests 30 seconds to complete
+		shutdownCtx, cancel := context.WithTimeout(ctx, s.config.Server.GracefulShutdownTimeout)
+		defer cancel()
+
+		return s.Shutdown(shutdownCtx)
 	}
 }
 
@@ -249,6 +395,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.securityClient != nil {
 		if err := s.securityClient.Close(); err != nil {
 			s.logger.Error("Failed to close security client", zap.Error(err))
+		}
+	}
+
+	// Close database connection
+	if s.db != nil {
+		if err := s.db.Close(); err != nil {
+			s.logger.Error("Failed to close database connection", zap.Error(err))
 		}
 	}
 

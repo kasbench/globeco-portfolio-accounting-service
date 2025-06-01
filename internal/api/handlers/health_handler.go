@@ -73,7 +73,7 @@ func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 // GetLiveness handles GET /health/live - Kubernetes liveness probe
 // @Summary Kubernetes liveness probe
-// @Description Returns liveness status for Kubernetes health checking (always returns healthy for running service)
+// @Description Always returns alive status for Kubernetes liveness probe. This endpoint should never fail as it only checks if the service is running.
 // @Tags Health
 // @Accept json
 // @Produce json
@@ -84,10 +84,11 @@ func (h *HealthHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
 
-	response := map[string]interface{}{
-		"status":    "alive",
-		"timestamp": time.Now(),
-		"service":   "globeco-portfolio-accounting-service",
+	response := dto.HealthResponse{
+		Status:      "alive",
+		Timestamp:   time.Now(),
+		Version:     h.version,
+		Environment: h.environment,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -170,11 +171,12 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	response := map[string]interface{}{
-		"status":    status,
-		"timestamp": time.Now(),
-		"checks":    checks,
-		"service":   "globeco-portfolio-accounting-service",
+	response := dto.HealthResponse{
+		Status:      status,
+		Timestamp:   time.Now(),
+		Version:     h.version,
+		Environment: h.environment,
+		Checks:      checks,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

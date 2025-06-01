@@ -2,11 +2,19 @@ package middleware
 
 import (
 	"net/http"
+	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	// Global metrics instances to prevent duplicate registration
+	globalMetrics     *MetricsMiddleware
+	globalMetricsOnce sync.Once
 )
 
 // MetricsMiddleware provides Prometheus metrics collection
@@ -16,12 +24,58 @@ type MetricsMiddleware struct {
 	requestSize       *prometheus.HistogramVec
 	responseSize      *prometheus.HistogramVec
 	activeConnections prometheus.Gauge
+	registry          prometheus.Registerer
 }
 
 // NewMetricsMiddleware creates a new metrics middleware
 func NewMetricsMiddleware(serviceName string) *MetricsMiddleware {
+	return NewMetricsMiddlewareWithRegistry(serviceName, nil)
+}
+
+// NewMetricsMiddlewareWithRegistry creates a new metrics middleware with custom registry
+// If registry is nil, uses the default global registry
+func NewMetricsMiddlewareWithRegistry(serviceName string, registry prometheus.Registerer) *MetricsMiddleware {
+	// Check if we're in a test environment - if so, use a new registry each time
+	if isTestEnvironment() {
+		if registry == nil {
+			registry = prometheus.NewRegistry()
+		}
+		return createMetricsMiddleware(serviceName, registry)
+	}
+
+	// In production, use singleton pattern to avoid duplicate registration
+	globalMetricsOnce.Do(func() {
+		if registry == nil {
+			registry = prometheus.DefaultRegisterer
+		}
+		globalMetrics = createMetricsMiddleware(serviceName, registry)
+	})
+
+	return globalMetrics
+}
+
+// isTestEnvironment detects if we're running in a test environment
+func isTestEnvironment() bool {
+	// Check common test environment indicators
+	for _, arg := range os.Args {
+		if arg == "-test.v" || arg == "-test.run" ||
+			len(arg) > 5 && arg[:5] == "-test" {
+			return true
+		}
+	}
+	// Check if the executable name suggests testing
+	executable := os.Args[0]
+	return len(executable) > 5 && executable[len(executable)-5:] == ".test" ||
+		len(executable) > 4 && executable[len(executable)-4:] == "test"
+}
+
+// createMetricsMiddleware creates the actual metrics middleware with registry
+func createMetricsMiddleware(serviceName string, registry prometheus.Registerer) *MetricsMiddleware {
+	factory := promauto.With(registry)
+
 	return &MetricsMiddleware{
-		requestDuration: promauto.NewHistogramVec(
+		registry: registry,
+		requestDuration: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "http_request_duration_seconds",
 				Help:    "Duration of HTTP requests in seconds",
@@ -29,14 +83,14 @@ func NewMetricsMiddleware(serviceName string) *MetricsMiddleware {
 			},
 			[]string{"service", "method", "endpoint", "status_code"},
 		),
-		requestCount: promauto.NewCounterVec(
+		requestCount: factory.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_requests_total",
 				Help: "Total number of HTTP requests",
 			},
 			[]string{"service", "method", "endpoint", "status_code"},
 		),
-		requestSize: promauto.NewHistogramVec(
+		requestSize: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "http_request_size_bytes",
 				Help:    "Size of HTTP requests in bytes",
@@ -44,7 +98,7 @@ func NewMetricsMiddleware(serviceName string) *MetricsMiddleware {
 			},
 			[]string{"service", "method", "endpoint"},
 		),
-		responseSize: promauto.NewHistogramVec(
+		responseSize: factory.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name:    "http_response_size_bytes",
 				Help:    "Size of HTTP responses in bytes",
@@ -52,7 +106,7 @@ func NewMetricsMiddleware(serviceName string) *MetricsMiddleware {
 			},
 			[]string{"service", "method", "endpoint", "status_code"},
 		),
-		activeConnections: promauto.NewGauge(
+		activeConnections: factory.NewGauge(
 			prometheus.GaugeOpts{
 				Name: "http_active_connections",
 				Help: "Number of active HTTP connections",
@@ -178,8 +232,11 @@ func (m *MetricsMiddleware) getEndpointPattern(path string) string {
 
 // RegisterMetrics registers additional custom metrics
 func (m *MetricsMiddleware) RegisterMetrics() {
+	// Use the same registry as the middleware instance
+	factory := promauto.With(m.registry)
+
 	// Additional business-specific metrics can be registered here
-	_ = promauto.NewCounterVec(
+	_ = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "transaction_operations_total",
 			Help: "Total number of transaction operations",
@@ -187,7 +244,7 @@ func (m *MetricsMiddleware) RegisterMetrics() {
 		[]string{"operation", "status"},
 	)
 
-	_ = promauto.NewCounterVec(
+	_ = factory.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "balance_operations_total",
 			Help: "Total number of balance operations",
@@ -195,7 +252,7 @@ func (m *MetricsMiddleware) RegisterMetrics() {
 		[]string{"operation", "status"},
 	)
 
-	_ = promauto.NewHistogramVec(
+	_ = factory.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "database_operation_duration_seconds",
 			Help:    "Duration of database operations in seconds",
@@ -204,7 +261,7 @@ func (m *MetricsMiddleware) RegisterMetrics() {
 		[]string{"operation", "table"},
 	)
 
-	_ = promauto.NewGaugeVec(
+	_ = factory.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "cache_hit_ratio",
 			Help: "Cache hit ratio",

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/handlers"
@@ -29,6 +30,7 @@ type RouterDependencies struct {
 	HealthHandler      *handlers.HealthHandler
 	SwaggerHandler     *handlers.SwaggerHandler
 	Logger             logger.Logger
+	MetricsRegistry    prometheus.Registerer // Optional custom registry for metrics (used in tests)
 }
 
 // SetupRouter creates and configures the main router with all routes and middleware
@@ -37,7 +39,15 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 
 	// Create middleware instances
 	loggingMiddleware := apiMiddleware.NewLoggingMiddleware(deps.Logger)
-	metricsMiddleware := apiMiddleware.NewMetricsMiddleware(config.ServiceName)
+
+	var metricsMiddleware *apiMiddleware.MetricsMiddleware
+	if deps.MetricsRegistry != nil {
+		// Use custom registry (for tests)
+		metricsMiddleware = apiMiddleware.NewMetricsMiddlewareWithRegistry(config.ServiceName, deps.MetricsRegistry)
+	} else {
+		// Use default global registry (for production)
+		metricsMiddleware = apiMiddleware.NewMetricsMiddleware(config.ServiceName)
+	}
 
 	// Global middleware stack
 	r.Use(middleware.RequestID)
