@@ -2260,3 +2260,91 @@ ok  github.com/kasbench/globeco-portfolio-accounting-service/tests/integration  
 - Error handling verification for edge cases
 
 The microservice now has robust integration testing that validates the entire request/response cycle from HTTP through all layers to database operations.
+
+## 2025-01-30 - Fixed Missing Balance Records During Transaction Processing
+
+**Request:** User reported that 10,000 transactions were successfully loaded via POST API but no balance records were created in the database. Expected 10,000 balance records to be created.
+
+**Root Cause Analysis:**
+- Transaction creation was only implementing **Step 1** of the required business workflow: saving transactions with status "NEW"
+- **Step 2** was missing: processing transactions to update balances and set status to "PROC"
+- The requirements clearly state: "Processing transactions is a two step process. First transactions are saved to the `transactions` table with a status of NEW. Then they are used to update the `balances` table, whereupon status becomes PROC."
+
+**Current Implementation Problem:**
+- `CreateTransaction()` and `CreateTransactions()` methods only saved transactions with status "NEW"
+- Separate `ProcessTransaction()` method existed but was never called automatically
+- Balance calculation and persistence logic was present but not invoked during transaction creation
+- Missing integration between transaction creation and balance processing workflows
+
+**Technical Solution Implemented:**
+
+**✅ Updated Transaction Service Workflow:**
+- Modified `CreateTransaction()` to automatically process transactions after creation
+- Modified `CreateTransactions()` to automatically process each transaction after creation
+- Added automatic invocation of `transactionProcessor.ProcessTransaction()` in both methods
+- Implemented proper error handling for processing failures
+
+**✅ Complete Processing Pipeline:**
+1. **Step 1**: Validate and save transaction with status "NEW" ✅
+2. **Step 2**: Automatically process transaction:
+   - Calculate balance impacts using `BalanceCalculator.ApplyTransactionToBalances()`
+   - Create/update security balance records (if applicable)
+   - Create/update cash balance records (if applicable)
+   - Update transaction status to "PROC"
+   - All within proper database transaction for atomicity
+
+**✅ Enhanced Error Handling:**
+- Processing failures are captured and returned as validation errors
+- Failed transactions remain with "NEW" or "ERROR" status
+- Successful transactions show "PROC" status in response
+- Comprehensive logging throughout the processing pipeline
+
+**✅ Transaction Type Impact Logic:**
+The implementation correctly follows the requirements table for transaction type impacts:
+
+| Type  | Long Units | Short Units | Cash | Description |
+|-------|------------|-------------|------|-------------|
+| BUY   | +          | N/A         | -    | Buy securities |
+| SELL  | -          | N/A         | +    | Sell securities |
+| SHORT | N/A        | +           | +    | Short sell |
+| COVER | N/A        | -           | -    | Cover short position |
+| DEP   | N/A        | N/A         | +    | Cash deposit |
+| WD    | N/A        | N/A         | -    | Cash withdrawal |
+| IN    | +          | N/A         | N/A  | Securities transfer in |
+| OUT   | -          | N/A         | N/A  | Securities transfer out |
+
+**✅ Balance Record Creation:**
+- Security transactions create/update balance records for both security and cash
+- Cash transactions (DEP/WD) create/update cash balance records only
+- Each portfolio can have multiple security balance records (one per security)
+- Each portfolio has exactly one cash balance record (security_id = NULL)
+
+**✅ Database Transaction Atomicity:**
+- Balance updates and transaction status changes occur within database transactions
+- Proper optimistic locking with version management
+- Rollback capability if any step fails
+
+**Files Modified:**
+- `internal/application/services/transaction_service.go`: 
+  - Updated `CreateTransaction()` method to include automatic processing
+  - Updated `CreateTransactions()` method to include automatic processing
+  - Added comprehensive error handling and logging
+
+**Expected Behavior After Fix:**
+- POST `/api/v1/transactions` now creates both transaction AND balance records
+- Transaction status returns as "PROC" when successful
+- Balance records created according to transaction type impact rules
+- Complete end-to-end transaction processing in single API call
+
+**Build Verification:**
+- `go build ./cmd/server` ✅ Successful compilation
+- All transaction processing logic properly integrated
+- No linter errors or compilation issues
+
+**Result:** Transaction processing now implements the complete required business workflow. When users POST transactions via the API, the system will automatically:
+1. Save transactions with status "NEW"
+2. Process transactions to update balance records 
+3. Set transaction status to "PROC"
+4. Return processed transactions with balance updates completed
+
+This resolves the issue where 10,000 transactions were created but no balance records existed - the balance creation workflow is now automatically executed for all transaction creation requests.

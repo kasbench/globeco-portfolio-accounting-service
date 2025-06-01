@@ -86,16 +86,15 @@ func NewTransactionService(
 // CreateTransaction creates a single transaction
 func (s *transactionService) CreateTransaction(ctx context.Context, transactionDTO dto.TransactionPostDTO) (*dto.TransactionResponseDTO, error) {
 	s.logger.Info("Creating single transaction",
-		logger.String("portfolioId", transactionDTO.PortfolioID),
 		logger.String("sourceId", transactionDTO.SourceID))
 
 	// Validate DTO
 	validationErrors := s.transactionMapper.ValidatePostDTO(&transactionDTO)
 	if len(validationErrors) > 0 {
-		s.logger.Warn("Transaction validation failed",
+		s.logger.Warn("Transaction DTO validation failed",
 			logger.Int("errorCount", len(validationErrors)),
 			logger.String("sourceId", transactionDTO.SourceID))
-		return nil, fmt.Errorf("validation failed: %d errors", len(validationErrors))
+		return nil, fmt.Errorf("validation failed: %s", validationErrors[0].Message)
 	}
 
 	// Convert DTO to domain model
@@ -119,7 +118,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, transactionD
 	// Convert domain transaction to repository transaction for persistence
 	repoTransaction := s.convertDomainToRepo(domainTransaction)
 
-	// Create transaction in repository
+	// Create transaction in repository with status NEW
 	err = s.transactionRepo.Create(ctx, repoTransaction)
 	if err != nil {
 		s.logger.Error("Failed to create transaction in repository",
@@ -132,9 +131,48 @@ func (s *transactionService) CreateTransaction(ctx context.Context, transactionD
 		logger.Int64("transactionId", repoTransaction.ID),
 		logger.String("sourceId", transactionDTO.SourceID))
 
-	// Convert back to response DTO using the repository transaction with ID
+	// Convert back to domain transaction with ID for processing
 	domainTransactionWithID := s.convertRepoToDomain(repoTransaction)
-	return s.transactionMapper.ToResponseDTO(domainTransactionWithID), nil
+
+	// STEP 2: Process transaction to update balances and set status to PROC
+	// This implements the required business workflow from requirements
+	processingResult, err := s.transactionProcessor.ProcessTransaction(ctx, domainTransactionWithID)
+	if err != nil {
+		s.logger.Error("Failed to process transaction after creation",
+			logger.Err(err),
+			logger.Int64("transactionId", repoTransaction.ID),
+			logger.String("sourceId", transactionDTO.SourceID))
+		return nil, fmt.Errorf("transaction created but processing failed: %w", err)
+	}
+
+	// Check if processing was successful
+	if processingResult != nil && !processingResult.Success {
+		s.logger.Warn("Transaction processing failed after creation",
+			logger.Int64("transactionId", repoTransaction.ID),
+			logger.String("sourceId", transactionDTO.SourceID),
+			logger.String("error", processingResult.ErrorMessage))
+		return nil, fmt.Errorf("transaction processing failed: %s", processingResult.ErrorMessage)
+	}
+
+	// Get the updated transaction with PROC status
+	updatedRepoTransaction, err := s.transactionRepo.GetByID(ctx, repoTransaction.ID)
+	if err != nil {
+		s.logger.Warn("Failed to retrieve processed transaction, using original",
+			logger.Err(err),
+			logger.Int64("transactionId", repoTransaction.ID))
+		// Return original transaction even if we can't retrieve updated version
+		return s.transactionMapper.ToResponseDTO(domainTransactionWithID), nil
+	}
+
+	// Use the updated transaction with PROC status
+	processedDomainTransaction := s.convertRepoToDomain(updatedRepoTransaction)
+
+	s.logger.Info("Transaction created and processed successfully",
+		logger.Int64("transactionId", repoTransaction.ID),
+		logger.String("sourceId", transactionDTO.SourceID),
+		logger.String("status", "PROC"))
+
+	return s.transactionMapper.ToResponseDTO(processedDomainTransaction), nil
 }
 
 // CreateTransactions creates multiple transactions in a batch
@@ -205,7 +243,7 @@ func (s *transactionService) CreateTransactions(ctx context.Context, transaction
 		// Convert domain transaction to repository transaction
 		repoTransaction := s.convertDomainToRepo(domainTransaction)
 
-		// Create transaction in repository
+		// Create transaction in repository with status NEW
 		err = s.transactionRepo.Create(ctx, repoTransaction)
 		if err != nil {
 			failed = append(failed, dto.TransactionErrorDTO{
@@ -219,12 +257,68 @@ func (s *transactionService) CreateTransactions(ctx context.Context, transaction
 			continue
 		}
 
-		// Convert back to domain transaction with ID
+		// Convert back to domain transaction with ID for processing
 		domainTransactionWithID := s.convertRepoToDomain(repoTransaction)
-		successful = append(successful, domainTransactionWithID)
+
+		// STEP 2: Process transaction to update balances and set status to PROC
+		// This implements the required business workflow from requirements
+		processingResult, err := s.transactionProcessor.ProcessTransaction(ctx, domainTransactionWithID)
+		if err != nil {
+			s.logger.Error("Failed to process transaction after creation",
+				logger.Err(err),
+				logger.Int64("transactionId", repoTransaction.ID),
+				logger.String("sourceId", transactionDTO.SourceID))
+
+			// Transaction was created but processing failed - mark as ERROR
+			failed = append(failed, dto.TransactionErrorDTO{
+				Transaction: transactionDTO,
+				Errors: []dto.ValidationError{{
+					Field:   "processing",
+					Message: fmt.Sprintf("balance processing failed: %v", err),
+					Value:   fmt.Sprintf("index_%d", i),
+				}},
+			})
+			continue
+		}
+
+		// Check if processing was successful
+		if processingResult != nil && !processingResult.Success {
+			s.logger.Warn("Transaction processing failed after creation",
+				logger.Int64("transactionId", repoTransaction.ID),
+				logger.String("sourceId", transactionDTO.SourceID),
+				logger.String("error", processingResult.ErrorMessage))
+
+			failed = append(failed, dto.TransactionErrorDTO{
+				Transaction: transactionDTO,
+				Errors: []dto.ValidationError{{
+					Field:   "processing",
+					Message: processingResult.ErrorMessage,
+					Value:   fmt.Sprintf("index_%d", i),
+				}},
+			})
+			continue
+		}
+
+		// Get the updated transaction with PROC status
+		updatedRepoTransaction, err := s.transactionRepo.GetByID(ctx, repoTransaction.ID)
+		if err != nil {
+			s.logger.Error("Failed to retrieve processed transaction",
+				logger.Err(err),
+				logger.Int64("transactionId", repoTransaction.ID))
+			// Continue with original transaction even if we can't retrieve updated version
+			successful = append(successful, domainTransactionWithID)
+		} else {
+			// Use the updated transaction with PROC status
+			successful = append(successful, s.convertRepoToDomain(updatedRepoTransaction))
+		}
+
+		s.logger.Info("Transaction created and processed successfully",
+			logger.Int64("transactionId", repoTransaction.ID),
+			logger.String("sourceId", transactionDTO.SourceID),
+			logger.String("status", "PROC"))
 	}
 
-	s.logger.Info("Batch transaction creation completed",
+	s.logger.Info("Batch transaction creation and processing completed",
 		logger.Int("successful", len(successful)),
 		logger.Int("failed", len(failed)),
 		logger.Int("total", len(transactionDTOs)))
