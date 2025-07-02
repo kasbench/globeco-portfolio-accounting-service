@@ -2,12 +2,17 @@ package commands
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/application/services"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"github.com/spf13/cobra"
@@ -275,24 +280,184 @@ func (p *FileProcessor) sortFile(inputFile, outputDir string) (string, error) {
 
 // processBatches processes the file in batches grouped by portfolio
 func (p *FileProcessor) processBatches(ctx context.Context, filePath string, options ProcessingOptions) (*ProcessingResult, error) {
-	// TODO: Implement batch processing
-	// - Read CSV file in chunks
-	// - Group transactions by portfolio_id
-	// - Submit batches to transaction service
-	// - Handle errors and create error file
-	p.logger.Debug("Batch processing - basic implementation")
+	csvProc := services.NewCSVProcessor(p.logger)
+	records, err := csvProc.ReadCSVFile(ctx, filePath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read/validate CSV: %w", err)
+	}
 
-	// Basic result for now
 	result := &ProcessingResult{
-		TotalRecords:     0,
-		ProcessedRecords: 0,
-		SuccessRecords:   0,
-		ErrorRecords:     0,
-		Batches:          0,
-		SkippedRecords:   0,
+		TotalRecords: len(records),
+	}
+
+	var (
+		validRecords []*services.CSVTransactionRecord
+		errors       []string
+		errorRecords [][]string
+	)
+
+	for _, rec := range records {
+		if rec.Valid {
+			validRecords = append(validRecords, rec)
+		} else {
+			errorRecords = append(errorRecords, []string{
+				rec.PortfolioID, rec.SecurityID, rec.SourceID, rec.TransactionType, rec.Quantity, rec.Price, rec.TransactionDate, rec.ErrorMessage,
+			})
+			result.ErrorRecords++
+		}
+	}
+
+	batchSize := options.BatchSize
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	serviceURL := p.getServiceURL()
+	endpoint := serviceURL + "/api/v1/transactions"
+
+	client := &http.Client{Timeout: options.Timeout}
+	batches := 0
+	skipped := 0
+	var batch [][]*services.CSVTransactionRecord
+	for i := 0; i < len(validRecords); i += batchSize {
+		end := i + batchSize
+		if end > len(validRecords) {
+			end = len(validRecords)
+		}
+		batch = append(batch, validRecords[i:end])
+	}
+
+	for _, recBatch := range batch {
+		var dtos []map[string]interface{}
+		for _, rec := range recBatch {
+			dto, err := csvProc.ConvertToTransactionDTO(rec)
+			if err != nil {
+				rec.Valid = false
+				rec.ErrorMessage = err.Error()
+				errorRecords = append(errorRecords, []string{
+					rec.PortfolioID, rec.SecurityID, rec.SourceID, rec.TransactionType, rec.Quantity, rec.Price, rec.TransactionDate, rec.ErrorMessage,
+				})
+				result.ErrorRecords++
+				continue
+			}
+			m := map[string]interface{}{
+				"portfolioId":     dto.PortfolioID,
+				"sourceId":        dto.SourceID,
+				"transactionType": dto.TransactionType,
+				"quantity":        dto.Quantity.String(),
+				"price":           dto.Price.String(),
+				"transactionDate": dto.TransactionDate,
+			}
+			if dto.SecurityID != nil {
+				m["securityId"] = *dto.SecurityID
+			}
+			dtos = append(dtos, m)
+		}
+		if len(dtos) == 0 {
+			skipped += len(recBatch)
+			continue
+		}
+		batches++
+		jsonData, err := json.Marshal(dtos)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to marshal batch: %v", err))
+			continue
+		}
+		resp, err := client.Post(endpoint, "application/json", strings.NewReader(string(jsonData)))
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("HTTP error: %v", err))
+			for _, rec := range recBatch {
+				rec.Valid = false
+				rec.ErrorMessage = err.Error()
+				errorRecords = append(errorRecords, []string{
+					rec.PortfolioID, rec.SecurityID, rec.SourceID, rec.TransactionType, rec.Quantity, rec.Price, rec.TransactionDate, rec.ErrorMessage,
+				})
+				result.ErrorRecords++
+			}
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 && resp.StatusCode != 201 {
+			body, _ := io.ReadAll(resp.Body)
+			errors = append(errors, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)))
+			for _, rec := range recBatch {
+				rec.Valid = false
+				rec.ErrorMessage = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body))
+				errorRecords = append(errorRecords, []string{
+					rec.PortfolioID, rec.SecurityID, rec.SourceID, rec.TransactionType, rec.Quantity, rec.Price, rec.TransactionDate, rec.ErrorMessage,
+				})
+				result.ErrorRecords++
+			}
+			continue
+		}
+		var batchResp struct {
+			Successful []interface{} `json:"successful"`
+			Failed     []struct {
+				Transaction map[string]interface{} `json:"transaction"`
+				Errors      []struct {
+					Field   string `json:"field"`
+					Message string `json:"message"`
+				} `json:"errors"`
+			} `json:"failed"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&batchResp); err != nil {
+			errors = append(errors, fmt.Sprintf("failed to decode response: %v", err))
+			continue
+		}
+		result.SuccessRecords += len(batchResp.Successful)
+		for _, fail := range batchResp.Failed {
+			rec := fail.Transaction
+			errMsg := ""
+			for _, e := range fail.Errors {
+				if errMsg != "" {
+					errMsg += "; "
+				}
+				errMsg += fmt.Sprintf("%s: %s", e.Field, e.Message)
+			}
+			errorRecords = append(errorRecords, []string{
+				fmt.Sprint(rec["portfolioId"]),
+				fmt.Sprint(rec["securityId"]),
+				fmt.Sprint(rec["sourceId"]),
+				fmt.Sprint(rec["transactionType"]),
+				fmt.Sprint(rec["quantity"]),
+				fmt.Sprint(rec["price"]),
+				fmt.Sprint(rec["transactionDate"]),
+				errMsg,
+			})
+			result.ErrorRecords++
+		}
+		result.ProcessedRecords += len(dtos)
+	}
+	result.Batches = batches
+	result.SkippedRecords = skipped
+
+	if len(errorRecords) > 0 {
+		header := []string{"portfolio_id", "security_id", "source_id", "transaction_type", "quantity", "price", "transaction_date", "error_message"}
+		errorFile := filepath.Join(options.OutputDir, filepath.Base(filePath)+".errors.csv")
+		f, err := os.Create(errorFile)
+		if err == nil {
+			w := csv.NewWriter(f)
+			_ = w.Write(header)
+			_ = w.WriteAll(errorRecords)
+			w.Flush()
+			f.Close()
+			result.ErrorFile = errorFile
+		}
 	}
 
 	return result, nil
+}
+
+// getServiceURL builds the base URL for the backend service
+func (p *FileProcessor) getServiceURL() string {
+	host := p.config.Server.Host
+	port := p.config.Server.Port
+	if host == "" {
+		host = "localhost"
+	}
+	if port == 0 {
+		port = 8087
+	}
+	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
 // printProcessingResults prints the processing results to stdout

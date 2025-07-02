@@ -198,6 +198,20 @@ Successfully implemented comprehensive caching layer for the GlobeCo Portfolio A
 - CacheType enum supporting Hazelcast/Memory/Noop implementations
 - HazelcastConfig with cluster members, timeouts, and serialization
 - MemoryCacheConfig with max entries and cleanup intervals
+
+## Request: Create CLI Usage Guide for Claude LLM
+
+**Date:** 2024-12-19
+**Request:** Review the README.md and code to write a comprehensive guide for another Claude LLM on using the CLI. The guide should cover file format specifications and provide instructions for two different scenarios: 1. CLI running in Docker on the same host as the caller, and 2. CLI and caller running in Kubernetes.
+
+**Summary:** 
+- Analyzing CLI command structure and functionality from cmd/cli/ directory
+- Documenting CSV file format requirements for transaction processing
+- Creating deployment guides for Docker and Kubernetes scenarios
+- Providing complete examples of CLI invocation patterns
+- Ensuring guide covers validation, processing, and status commands
+
+**Action Taken:** Creating comprehensive CLI usage guide with file format specifications and deployment scenarios.
 - CacheFactory for environment-specific cache creation
 
 **Files Created:**
