@@ -2785,3 +2785,47 @@ if transaction.IsCashTransaction() && b.IsCashBalance() {
 - `.github/workflows/docker-build.yml`: Added checkout step, fixed permissions, enhanced SARIF upload
 
 **Result:** GitHub Actions workflow now successfully uploads Trivy security scan results to GitHub Security tab, enabling proper vulnerability monitoring and security alerting for the Docker images.
+
+## 2025-01-30 - Update All Manifests in Deployments/ to Use 'globeco' Namespace
+
+**Request:** User requested to update all manifests in deployments/ to use the 'globeco' namespace (removing creation of the namespace itself), update scripts/k8s-deploy.sh to not create the namespace and to use 'globeco' as default, and add scripts/k8s-destroy.sh to delete all resources except the namespace, as requested by the user.
+
+**Action Taken:**
+
+**✅ Updated Deployment Manifests:**
+- Updated all deployment manifests to use 'globeco' namespace
+- Removed namespace creation from manifests
+- Updated `k8s-deploy.sh` to use 'globeco' namespace as default
+- Added `k8s-destroy.sh` script for resource cleanup
+
+**✅ Updated Configuration Files:**
+- Updated `deployments/configmap.yaml` to include namespace
+- Updated `deployments/secrets.yaml` to include namespace
+- Updated `deployments/ingress.yaml` to include namespace
+- Updated `deployments/hpa.yaml` to include namespace
+- Updated `deployments/postgres.yaml` to include namespace
+- Updated `deployments/hazelcast.yaml` to include namespace
+- Updated `deployments/namespace.yaml` to include namespace
+
+**✅ Updated Deployment Scripts:**
+- Updated `scripts/k8s-deploy.sh` to use 'globeco' namespace as default
+- Added `k8s-destroy.sh` script for resource cleanup
+
+**✅ Updated Documentation:**
+- Updated `deployments/README.md` to include namespace information
+- Added `k8s-destroy.sh` script to documentation
+
+**Result:** All manifests now use 'globeco' namespace. The namespace is no longer created manually. The deployment scripts now use 'globeco' namespace as default. The destroy script cleans up all resources except the namespace.
+
+## 2025-01-30 - Split k8s-deploy.sh and k8s-destroy.sh into Component Scripts
+
+**Request:** User requested to break up k8s-deploy.sh and k8s-destroy.sh into three scripts each: one for Hazelcast, one for Postgres, and one for everything else (App).
+
+**Action Taken:**
+- Created scripts/k8s-deploy-hazelcast.sh and scripts/k8s-destroy-hazelcast.sh for Hazelcast resources.
+- Created scripts/k8s-deploy-postgres.sh and scripts/k8s-destroy-postgres.sh for Postgres resources.
+- Created scripts/k8s-deploy-app.sh and scripts/k8s-destroy-app.sh for all other (App) resources.
+- Each script includes safety checks, color output, and help, and only manages its respective resources.
+
+**Result:**
+- Deployment and destroy operations can now be performed independently for Hazelcast, Postgres, and the main application resources.

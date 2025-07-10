@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: hazelcast
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: cache
@@ -12,7 +12,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: hazelcast
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: cache
@@ -26,7 +26,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: hazelcast
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: cache
@@ -37,14 +37,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: hazelcast
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: hazelcast
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -139,7 +139,7 @@ spec:
         app.kubernetes.io/component: cache
     spec:
       accessModes: ["ReadWriteOnce"]
-      storageClassName: standard
+      storageClassName: local-storage
       resources:
         requests:
           storage: 5Gi
@@ -149,7 +149,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: hazelcast-service
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -179,7 +179,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: hazelcast-lb-service
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -204,7 +204,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: hazelcast-pdb
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: cache

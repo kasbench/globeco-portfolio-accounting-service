@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: portfolio-accounting-api-policy
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -113,7 +113,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: postgresql-policy
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -179,7 +179,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: hazelcast-policy
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -263,7 +263,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: deny-all-default
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -279,7 +279,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-monitoring
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -313,7 +313,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-dns
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production

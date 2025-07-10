@@ -2,7 +2,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: portfolio-accounting-hpa
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -87,7 +87,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: hazelcast-hpa
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -151,7 +151,7 @@ apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: portfolio-accounting-vpa
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -181,7 +181,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: portfolio-accounting-custom-metrics
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production

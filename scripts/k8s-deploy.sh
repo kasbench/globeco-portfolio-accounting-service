@@ -12,7 +12,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEPLOYMENTS_DIR="$PROJECT_ROOT/deployments"
 
 # Default configuration
-DEFAULT_NAMESPACE="globeco-portfolio-accounting"
+DEFAULT_NAMESPACE="globeco"
 DEFAULT_ENVIRONMENT="production"
 DEFAULT_IMAGE_TAG="latest"
 DEFAULT_REPLICAS="3"
@@ -135,22 +135,6 @@ check_prerequisites() {
     print_success "Prerequisites check completed"
 }
 
-# Function to create namespace if it doesn't exist
-create_namespace() {
-    print_info "Creating namespace: $NAMESPACE"
-    
-    if kubectl get namespace "$NAMESPACE" &> /dev/null; then
-        print_info "Namespace $NAMESPACE already exists"
-    else
-        if [[ "$DRY_RUN" == "true" ]]; then
-            print_info "DRY RUN: Would create namespace $NAMESPACE"
-        else
-            kubectl create namespace "$NAMESPACE"
-            print_success "Namespace $NAMESPACE created"
-        fi
-    fi
-}
-
 # Function to apply configuration
 apply_configuration() {
     local resource_file="$1"
@@ -206,12 +190,8 @@ deploy_service() {
         fi
     fi
     
-    # Create namespace
-    create_namespace
-    
     # Apply resources in order
     local resources=(
-        "namespace.yaml"
         "configmap.yaml"
         "secrets.yaml"
         "postgres.yaml"

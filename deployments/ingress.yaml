@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: portfolio-accounting-ingress
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -108,7 +108,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: portfolio-accounting-internal
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -166,7 +166,7 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: portfolio-accounting-route
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production
@@ -215,7 +215,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: portfolio-accounting-cert
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/instance: production

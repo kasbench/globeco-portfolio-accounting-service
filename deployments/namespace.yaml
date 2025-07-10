@@ -1,28 +1,8 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: globeco-portfolio-accounting
-  labels:
-    app.kubernetes.io/name: globeco-portfolio-accounting
-    app.kubernetes.io/instance: production
-    app.kubernetes.io/version: "1.0.0"
-    app.kubernetes.io/component: microservice
-    app.kubernetes.io/part-of: globeco-suite
-    app.kubernetes.io/managed-by: kubernetes
-    environment: production
-    team: kasbench
-  annotations:
-    description: "GlobeCo Portfolio Accounting Service - Financial transaction processing and balance management"
-    contact: "noah@kasbench.org"
-    documentation: "https://github.com/kasbench/globeco-portfolio-accounting-service"
-    monitoring.coreos.com/enabled: "true"
-    linkerd.io/inject: enabled
----
-apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: portfolio-accounting-quota
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: resource-quota
@@ -42,7 +22,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: portfolio-accounting-limits
-  namespace: globeco-portfolio-accounting
+  namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
     app.kubernetes.io/component: limit-range
