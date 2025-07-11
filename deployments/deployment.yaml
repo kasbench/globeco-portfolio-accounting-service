@@ -58,12 +58,12 @@ spec:
         - name: APP_ENV
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: APP_ENV
         - name: LOG_LEVEL
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: LOG_LEVEL
         - name: CONFIG_PATH
           value: "/etc/portfolio-accounting/config.yaml"
@@ -82,36 +82,36 @@ spec:
         - name: DB_MAX_OPEN_CONNS
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: DB_MAX_OPEN_CONNS
         - name: DB_MAX_IDLE_CONNS
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: DB_MAX_IDLE_CONNS
         - name: DB_CONN_MAX_LIFETIME
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: DB_CONN_MAX_LIFETIME
         - name: DB_MIGRATIONS_PATH
           value: "/usr/local/share/migrations"
         - name: DB_AUTO_MIGRATE
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: DB_AUTO_MIGRATE
         
         # Cache configuration
         - name: CACHE_TTL
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: CACHE_TTL
         - name: CACHE_CLUSTER_NAME
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: CACHE_CLUSTER_NAME
         - name: HAZELCAST_PASSWORD
           valueFrom:
@@ -133,12 +133,12 @@ spec:
         - name: PORTFOLIO_SERVICE_TIMEOUT
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: PORTFOLIO_SERVICE_TIMEOUT
         - name: SECURITY_SERVICE_TIMEOUT
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: SECURITY_SERVICE_TIMEOUT
         
         # Kafka configuration
@@ -155,41 +155,41 @@ spec:
         - name: KAFKA_GROUP_ID
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: KAFKA_GROUP_ID
         - name: KAFKA_AUTO_OFFSET_RESET
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: KAFKA_AUTO_OFFSET_RESET
         
         # Server configuration
         - name: SERVER_READ_TIMEOUT
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: SERVER_READ_TIMEOUT
         - name: SERVER_WRITE_TIMEOUT
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: SERVER_WRITE_TIMEOUT
         - name: SERVER_IDLE_TIMEOUT
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: SERVER_IDLE_TIMEOUT
         
         # Monitoring configuration
         - name: METRICS_ENABLED
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: METRICS_ENABLED
         - name: TRACING_ENABLED
           valueFrom:
             configMapKeyRef:
-              name: portfolio-accounting-config
+              name: globeco-portfolio-accounting-service-config
               key: TRACING_ENABLED
         - name: METRICS_AUTH_TOKEN
           valueFrom:
@@ -273,7 +273,7 @@ spec:
       volumes:
       - name: config-volume
         configMap:
-          name: portfolio-accounting-config
+          name: globeco-portfolio-accounting-service-config
           items:
           - key: config.yaml
             path: config.yaml

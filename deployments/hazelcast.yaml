@@ -40,10 +40,98 @@ subjects:
   namespace: globeco
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: globeco-portfolio-accounting-service-hazelcast-config
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: hazelcast-config
+data:
+  hazelcast.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <hazelcast xsi:schemaLocation="http://www.hazelcast.com/schema/config hazelcast-config-5.3.xsd"
+               xmlns="http://www.hazelcast.com/schema/config"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        
+        <cluster-name>portfolio-accounting-cluster</cluster-name>
+        
+        <properties>
+            <property name="hazelcast.discovery.enabled">true</property>
+            <property name="hazelcast.discovery.public.ip.enabled">false</property>
+            <property name="hazelcast.kubernetes.service-dns">globeco-portfolio-accounting-service-cache.globeco.svc.cluster.local</property>
+        </properties>
+        
+        <network>
+            <port auto-increment="true" port-count="100">5701</port>
+            <outbound-ports>
+                <ports>0</ports>
+            </outbound-ports>
+            <join>
+                <multicast enabled="false"/>
+                <tcp-ip enabled="false"/>
+                <aws enabled="false"/>
+                <gcp enabled="false"/>
+                <azure enabled="false"/>
+                <kubernetes enabled="true">
+                    <namespace>globeco</namespace>
+                    <service-name>globeco-portfolio-accounting-service-cache</service-name>
+                </kubernetes>
+            </join>
+            <rest-api enabled="true">
+                <endpoint-group name="HEALTH_CHECK" enabled="true"/>
+            </rest-api>
+        </network>
+        
+        <map name="portfolios">
+            <time-to-live-seconds>3600</time-to-live-seconds>
+            <max-idle-seconds>1800</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="10000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="transactions">
+            <time-to-live-seconds>7200</time-to-live-seconds>
+            <max-idle-seconds>3600</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="50000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="balances">
+            <time-to-live-seconds>1800</time-to-live-seconds>
+            <max-idle-seconds>900</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="25000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="external_service_cache">
+            <time-to-live-seconds>300</time-to-live-seconds>
+            <max-idle-seconds>180</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="5000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <management-center scripting-enabled="false"/>
+        
+        <metrics enabled="true">
+            <management-center enabled="false"/>
+            <jmx enabled="true"/>
+        </metrics>
+        
+    </hazelcast> 
+
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: hazelcast
+  name: globeco-portfolio-accounting-service-hazelcast
   namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
@@ -53,8 +141,8 @@ metadata:
     app.kubernetes.io/part-of: globeco-suite
     app.kubernetes.io/managed-by: kubernetes
 spec:
-  serviceName: hazelcast-service
-  replicas: 3
+  serviceName: globeco-portfolio-accounting-service-cache
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: globeco-portfolio-accounting
@@ -74,7 +162,7 @@ spec:
       serviceAccountName: hazelcast
       containers:
       - name: hazelcast
-        image: hazelcast/hazelcast:5.3.7
+        image: hazelcast/hazelcast:latest
         ports:
         - containerPort: 5701
           name: hazelcast
@@ -82,28 +170,12 @@ spec:
           name: metrics
         env:
         - name: JAVA_OPTS
-          valueFrom:
-            configMapKeyRef:
-              name: portfolio-accounting-config
-              key: JAVA_OPTS
+          value: "-Dhazelcast.config=/opt/hazelcast/config/hazelcast.xml"
         - name: HZ_CLUSTERNAME
-          valueFrom:
-            configMapKeyRef:
-              name: portfolio-accounting-config
-              key: CACHE_CLUSTER_NAME
-        - name: HZ_NETWORK_KUBERNETES_ENABLED
-          value: "true"
-        - name: HZ_NETWORK_KUBERNETES_NAMESPACE
-          value: "globeco-portfolio-accounting"
-        - name: HZ_NETWORK_KUBERNETES_SERVICE_NAME
-          value: "hazelcast-service"
-        - name: HZ_NETWORK_KUBERNETES_USE_NODE_NAME_AS_EXTERNAL_ADDRESS
-          value: "false"
-        - name: HZ_NETWORK_KUBERNETES_SERVICE_DNS
-          value: "hazelcast-service.globeco-portfolio-accounting.svc.cluster.local"
+          value: "portfolio-accounting-cluster"
         volumeMounts:
         - name: hazelcast-config
-          mountPath: /opt/hazelcast/config_ext
+          mountPath: /data/hazelcast
         resources:
           requests:
             memory: "512Mi"
@@ -130,7 +202,7 @@ spec:
       volumes:
       - name: hazelcast-config
         configMap:
-          name: hazelcast-config
+          name: globeco-portfolio-accounting-service-hazelcast-config
   volumeClaimTemplates:
   - metadata:
       name: hazelcast-data
@@ -148,7 +220,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hazelcast-service
+  name: globeco-portfolio-accounting-service-cache
   namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting

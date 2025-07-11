@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tcpdump-debug
+  namespace: globeco
+spec:
+  containers:
+  - name: tcpdump
+    image: nicolaka/netshoot:latest
+    command: ["/bin/sh"]
+    args: ["-c", "sleep 3600"]
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  restartPolicy: Never 

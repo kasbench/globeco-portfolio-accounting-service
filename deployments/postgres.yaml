@@ -1,25 +1,8 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgresql-pvc
-  namespace: globeco
-  labels:
-    app.kubernetes.io/name: globeco-portfolio-accounting
-    app.kubernetes.io/instance: production
-    app.kubernetes.io/component: database
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
-  storageClassName: local-storage
 
----
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: postgresql
+  name: globeco-portfolio-accounting-service-postgresql
   namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
@@ -29,9 +12,8 @@ metadata:
     app.kubernetes.io/part-of: globeco-suite
     app.kubernetes.io/managed-by: kubernetes
 spec:
+  serviceName: globeco-portfolio-accounting-service-postgresql
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: globeco-portfolio-accounting
@@ -44,6 +26,19 @@ spec:
         app.kubernetes.io/component: database
         app.kubernetes.io/part-of: globeco-suite
     spec:
+      initContainers:
+      - name: init-postgres-data
+        image: busybox:1.35
+        command:
+          - /bin/sh
+          - -c
+          - |
+            mkdir -p /var/lib/postgresql/data/pgdata
+            chown -R 999:999 /var/lib/postgresql/data/pgdata
+            chmod 700 /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgresql-data-portfolio-accounting
+          mountPath: /var/lib/postgresql/data
       containers:
       - name: postgresql
         image: postgres:17-alpine
@@ -52,26 +47,18 @@ spec:
           name: postgresql
         env:
         - name: POSTGRES_DB
-          valueFrom:
-            secretKeyRef:
-              name: postgresql-secrets
-              key: POSTGRES_DB
+          value: portfolio_accounting
         - name: POSTGRES_USER
-          valueFrom:
-            secretKeyRef:
-              name: postgresql-secrets
-              key: POSTGRES_USER
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgresql-secrets
-              key: POSTGRES_PASSWORD
+          value: portfolio_user
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
-        - name: POSTGRES_INITDB_ARGS
-          value: "--auth-host=md5"
+        - name: POSTGRES_HOST_AUTH_METHOD
+          value: "trust"
+        args:
+        - "-c"
+        - "listen_addresses=0.0.0.0"
         volumeMounts:
-        - name: postgresql-data
+        - name: postgresql-data-portfolio-accounting
           mountPath: /var/lib/postgresql/data
         - name: postgresql-init
           mountPath: /docker-entrypoint-initdb.d
@@ -107,18 +94,28 @@ spec:
           timeoutSeconds: 3
           failureThreshold: 3
       volumes:
-      - name: postgresql-data
-        persistentVolumeClaim:
-          claimName: postgresql-pvc
       - name: postgresql-init
         configMap:
           name: postgresql-init-scripts
+  volumeClaimTemplates:
+  - metadata:
+      name: postgresql-data-portfolio-accounting
+      labels:
+        app.kubernetes.io/name: globeco-portfolio-accounting
+        app.kubernetes.io/component: database
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: local-storage
+      resources:
+        requests:
+          storage: 20Gi
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgresql-service
+  name: globeco-portfolio-accounting-service-postgresql
   namespace: globeco
   labels:
     app.kubernetes.io/name: globeco-portfolio-accounting
