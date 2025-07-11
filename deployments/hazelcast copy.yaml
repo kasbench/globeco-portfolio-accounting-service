@@ -189,22 +189,22 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "1000m"
-        livenessProbe:
-          httpGet:
-            path: /hazelcast/health/node-state
-            port: 5701
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /hazelcast/health/ready
-            port: 5701
-          initialDelaySeconds: 15
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
+        # livenessProbe:
+        #   httpGet:
+        #     path: /hazelcast/health/node-state
+        #     port: 8080
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+        #   failureThreshold: 3
+        # readinessProbe:
+        #   httpGet:
+        #     path: /hazelcast/health/ready
+        #     port: 8080
+        #   initialDelaySeconds: 15
+        #   periodSeconds: 5
+        #   timeoutSeconds: 3
+        #   failureThreshold: 3
       volumes:
       - name: hazelcast-config
         configMap:
