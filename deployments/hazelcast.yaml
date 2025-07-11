@@ -50,7 +50,7 @@ metadata:
     app.kubernetes.io/instance: production
     app.kubernetes.io/component: hazelcast-config
 data:
-  hazelcast.xml: |
+  hazelcast-docker.xml: |
     <?xml version="1.0" encoding="UTF-8"?>
     <hazelcast xsi:schemaLocation="http://www.hazelcast.com/schema/config hazelcast-config-5.3.xsd"
                xmlns="http://www.hazelcast.com/schema/config"
@@ -125,6 +125,10 @@ data:
         </metrics>
         
     </hazelcast> 
+  jvm.options: |
+    # Add custom JVM options here. For example:
+    # -Xms1g
+    # -Xmx1g 
 
 
 ---
@@ -169,13 +173,15 @@ spec:
         - containerPort: 8080
           name: metrics
         env:
-        - name: JAVA_OPTS
-          value: "-Dhazelcast.config=/opt/hazelcast/config/hazelcast.xml"
         - name: HZ_CLUSTERNAME
           value: "portfolio-accounting-cluster"
         volumeMounts:
         - name: hazelcast-config
-          mountPath: /data/hazelcast
+          mountPath: /opt/hazelcast/config/hazelcast-docker.xml
+          subPath: hazelcast-docker.xml
+        - name: hazelcast-config
+          mountPath: /opt/hazelcast/config/jvm.options
+          subPath: jvm.options
         resources:
           requests:
             memory: "512Mi"
@@ -186,7 +192,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /hazelcast/health/node-state
-            port: 5701
+            port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -194,7 +200,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /hazelcast/health/ready
-            port: 5701
+            port: 8080
           initialDelaySeconds: 15
           periodSeconds: 5
           timeoutSeconds: 3
