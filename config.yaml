@@ -55,18 +55,18 @@ metrics:
 tracing:
   enabled: true
   service_name: "globeco-portfolio-accounting-service"
-  endpoint: "http://localhost:14268/api/traces"
+  endpoint: "otel-collector-collector.monitoring.svc.cluster.local:4317"
   sample_rate: 0.1
 
 external:
   portfolio_service:
     host: "globeco-portfolio-service"
-    port: 8001
+    port: 8000
     timeout: "30s"
     max_retries: 3
     retry_backoff: "1s"
     circuit_breaker_threshold: 5
-    health_endpoint: "/health"
+    health_endpoint: "/"
   
   security_service:
     host: "globeco-security-service"

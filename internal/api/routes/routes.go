@@ -11,6 +11,7 @@ import (
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/handlers"
 	apiMiddleware "github.com/kasbench/globeco-portfolio-accounting-service/internal/api/middleware"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
+	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Config holds router configuration
@@ -80,7 +81,8 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 	setupDocumentationRoutes(r, deps.SwaggerHandler)
 	setupMetricsRoute(r, config.EnableMetrics)
 
-	return r
+	// Wrap router with OTel HTTP handler for tracing
+	return otelhttp.NewHandler(r, config.ServiceName)
 }
 
 // setupHealthRoutes configures health check endpoints

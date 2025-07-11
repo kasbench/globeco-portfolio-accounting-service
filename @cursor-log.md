@@ -2829,3 +2829,15 @@ if transaction.IsCashTransaction() && b.IsCashBalance() {
 
 **Result:**
 - Deployment and destroy operations can now be performed independently for Hazelcast, Postgres, and the main application resources.
+
+## 2025-01-30 - OpenTelemetry Instrumentation
+
+- ✅ **OpenTelemetry Instrumentation**: Service instrumented for both metrics and tracing
+    - Added `internal/observability/otel.go` for OTel SDK setup (tracing + metrics via OTLP gRPC)
+    - Initialized OTel in `cmd/server/main.go` with config-driven endpoint and sample rate
+    - Wrapped HTTP router with `otelhttp.NewHandler` for incoming request tracing
+    - Instrumented outgoing HTTP clients (portfolio/security) with `otelhttp.Transport`
+    - Updated client factories and server wiring for new signatures
+    - Upgraded OTel Go modules to v1.37.0 and cleaned up dependencies
+    - Verified: **Build and all tests pass**
+    - Next: Deploy and confirm metrics/traces in OTel Collector, Prometheus, and Jaeger

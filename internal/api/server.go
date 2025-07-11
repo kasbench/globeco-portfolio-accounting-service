@@ -177,10 +177,10 @@ func (s *Server) initializeExternalClients() error {
 		ServiceName: "security-service",
 	}
 
-	// Initialize portfolio client
+	// Initialize portfolio client with instrumented http.Client
 	s.portfolioClient = external.NewPortfolioClient(portfolioConfig, nil, s.logger)
 
-	// Initialize security client
+	// Initialize security client with instrumented http.Client
 	s.securityClient = external.NewSecurityClient(securityConfig, nil, s.logger)
 
 	s.logger.Info("External service clients initialized",

@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/cache"
-	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
+	logutil "github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
+	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // PortfolioClient represents the interface for portfolio service operations
@@ -34,50 +35,49 @@ type portfolioClient struct {
 	circuitBreaker *CircuitBreaker
 	retrier        *Retrier
 	cacheAside     *cache.ExternalServiceCacheAside
-	logger         logger.Logger
+	logger         logutil.Logger
 }
 
 // NewPortfolioClient creates a new portfolio service client
-func NewPortfolioClient(config PortfolioServiceConfig, cacheAside *cache.ExternalServiceCacheAside, lg logger.Logger) PortfolioClient {
-	if lg == nil {
-		lg = logger.NewDevelopment()
+func NewPortfolioClient(cfg PortfolioServiceConfig, httpClient *http.Client, logger logutil.Logger) PortfolioClient {
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Timeout:   cfg.ClientConfig.Timeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		}
+	} else {
+		httpClient.Transport = otelhttp.NewTransport(httpClient.Transport)
 	}
 
-	// Set defaults and validate
-	config.SetDefaults()
-	if err := config.Validate(); err != nil {
-		lg.Error("Invalid portfolio client configuration", logger.Err(err))
-		config.SetDefaults()
+	if logger == nil {
+		logger = logutil.NewDevelopment()
 	}
 
-	// Create HTTP client with timeouts
-	httpClient := &http.Client{
-		Timeout: config.Timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:        config.MaxIdleConnections,
-			MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
-			IdleConnTimeout:     config.IdleConnTimeout,
-		},
+	cfg.SetDefaults()
+	if err := cfg.Validate(); err != nil {
+		logger.Error("Invalid portfolio client configuration", logutil.Err(err))
+		cfg.SetDefaults()
 	}
 
 	// Create circuit breaker
-	circuitBreaker := NewCircuitBreaker(config.CircuitBreaker, lg)
+	circuitBreaker := NewCircuitBreaker(cfg.CircuitBreaker, logger)
 
 	// Create retrier
-	retrier := NewRetrier(config.Retry, lg)
+	retrier := NewRetrier(cfg.Retry, logger)
 
 	client := &portfolioClient{
 		httpClient:     httpClient,
-		config:         config,
+		config:         cfg,
 		circuitBreaker: circuitBreaker,
 		retrier:        retrier,
-		cacheAside:     cacheAside,
-		logger:         lg,
+		cacheAside:     nil, // CacheAside is not directly passed to NewPortfolioClient in this version
+		logger:         logger,
 	}
 
-	lg.Info("Portfolio client initialized",
-		logger.String("baseURL", config.BaseURL),
-		logger.Duration("timeout", config.Timeout))
+	logger.Info("Portfolio client initialized",
+		logutil.String("baseURL", cfg.BaseURL),
+		logutil.Duration("timeout", cfg.Timeout),
+	)
 
 	return client
 }
@@ -172,9 +172,9 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 	// Log request if enabled
 	if c.config.EnableLogging {
 		c.logger.Info("Making HTTP request",
-			logger.String("method", method),
-			logger.String("url", url),
-			logger.String("operation", operation))
+			logutil.String("method", method),
+			logutil.String("url", url),
+			logutil.String("operation", operation))
 	}
 
 	// Execute request
@@ -182,11 +182,11 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 	if err != nil {
 		duration := time.Since(startTime)
 		c.logger.Error("HTTP request failed",
-			logger.String("method", method),
-			logger.String("url", url),
-			logger.String("operation", operation),
-			logger.Duration("duration", duration),
-			logger.Err(err))
+			logutil.String("method", method),
+			logutil.String("url", url),
+			logutil.String("operation", operation),
+			logutil.Duration("duration", duration),
+			logutil.Err(err))
 		return err
 	}
 	defer resp.Body.Close()
@@ -196,11 +196,11 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 	// Log response if enabled
 	if c.config.EnableLogging {
 		c.logger.Info("HTTP response received",
-			logger.String("method", method),
-			logger.String("url", url),
-			logger.String("operation", operation),
-			logger.Int("statusCode", resp.StatusCode),
-			logger.Duration("duration", duration))
+			logutil.String("method", method),
+			logutil.String("url", url),
+			logutil.String("operation", operation),
+			logutil.Int("statusCode", resp.StatusCode),
+			logutil.Duration("duration", duration))
 	}
 
 	// Check for HTTP errors
@@ -214,12 +214,12 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 		serviceErr := NewServiceError(c.config.ServiceName, operation, resp.StatusCode, errorMsg)
 
 		c.logger.Error("HTTP request returned error",
-			logger.String("method", method),
-			logger.String("url", url),
-			logger.String("operation", operation),
-			logger.Int("statusCode", resp.StatusCode),
-			logger.String("error", errorMsg),
-			logger.Duration("duration", duration))
+			logutil.String("method", method),
+			logutil.String("url", url),
+			logutil.String("operation", operation),
+			logutil.Int("statusCode", resp.StatusCode),
+			logutil.String("error", errorMsg),
+			logutil.Duration("duration", duration))
 
 		return serviceErr
 	}

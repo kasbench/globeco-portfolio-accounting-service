@@ -10,6 +10,8 @@ import (
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/cache"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
+	logutil "github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
+	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // SecurityClient represents the interface for security service operations
@@ -44,46 +46,44 @@ type securityClient struct {
 }
 
 // NewSecurityClient creates a new security service client
-func NewSecurityClient(config SecurityServiceConfig, cacheAside *cache.ExternalServiceCacheAside, lg logger.Logger) SecurityClient {
-	if lg == nil {
-		lg = logger.NewDevelopment()
+func NewSecurityClient(cfg SecurityServiceConfig, httpClient *http.Client, logger logutil.Logger) SecurityClient {
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Timeout:   cfg.ClientConfig.Timeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		}
+	} else {
+		httpClient.Transport = otelhttp.NewTransport(httpClient.Transport)
 	}
 
-	// Set defaults and validate
-	config.SetDefaults()
-	if err := config.Validate(); err != nil {
-		lg.Error("Invalid security client configuration", logger.Err(err))
-		config.SetDefaults()
+	if logger == nil {
+		logger = logutil.NewDevelopment()
 	}
 
-	// Create HTTP client with timeouts
-	httpClient := &http.Client{
-		Timeout: config.Timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:        config.MaxIdleConnections,
-			MaxIdleConnsPerHost: config.MaxIdleConnsPerHost,
-			IdleConnTimeout:     config.IdleConnTimeout,
-		},
+	cfg.SetDefaults()
+	if err := cfg.Validate(); err != nil {
+		logger.Error("Invalid security client configuration", logutil.Err(err))
+		cfg.SetDefaults()
 	}
 
 	// Create circuit breaker
-	circuitBreaker := NewCircuitBreaker(config.CircuitBreaker, lg)
+	circuitBreaker := NewCircuitBreaker(cfg.CircuitBreaker, logger)
 
 	// Create retrier
-	retrier := NewRetrier(config.Retry, lg)
+	retrier := NewRetrier(cfg.Retry, logger)
 
 	client := &securityClient{
 		httpClient:     httpClient,
-		config:         config,
+		config:         cfg,
 		circuitBreaker: circuitBreaker,
 		retrier:        retrier,
-		cacheAside:     cacheAside,
-		logger:         lg,
+		logger:         logger,
 	}
 
-	lg.Info("Security client initialized",
-		logger.String("baseURL", config.BaseURL),
-		logger.Duration("timeout", config.Timeout))
+	logger.Info("Security client initialized",
+		logutil.String("baseURL", cfg.BaseURL),
+		logutil.Duration("timeout", cfg.Timeout),
+	)
 
 	return client
 }

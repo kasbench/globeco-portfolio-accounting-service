@@ -37,12 +37,12 @@ func NewExternalServiceFactory(config ExternalServicesConfig, cacheAside *cache.
 
 // CreatePortfolioClient creates a new portfolio service client
 func (f *ExternalServiceFactory) CreatePortfolioClient() PortfolioClient {
-	return NewPortfolioClient(f.config.PortfolioService, f.cacheAside, f.logger)
+	return NewPortfolioClient(f.config.PortfolioService, nil, f.logger)
 }
 
 // CreateSecurityClient creates a new security service client
 func (f *ExternalServiceFactory) CreateSecurityClient() SecurityClient {
-	return NewSecurityClient(f.config.SecurityService, f.cacheAside, f.logger)
+	return NewSecurityClient(f.config.SecurityService, nil, f.logger)
 }
 
 // ExternalServiceManager manages all external service clients

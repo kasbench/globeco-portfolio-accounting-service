@@ -12,6 +12,7 @@ import (
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/observability"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	"go.uber.org/zap"
 
@@ -98,6 +99,25 @@ func main() {
 	// Create main context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Initialize OpenTelemetry (metrics and tracing)
+	otelProvider, err := observability.InitOTel(
+		ctx,
+		cfg.Tracing.ServiceName,
+		cfg.Tracing.Endpoint, // Should be OTLP gRPC endpoint, e.g. "otel-collector-collector.monitoring.svc.cluster.local:4317"
+		cfg.Tracing.SampleRate,
+	)
+	if err != nil {
+		appLogger.Error("Failed to initialize OpenTelemetry", zap.Error(err))
+	} else {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := otelProvider.Shutdown(shutdownCtx); err != nil {
+				appLogger.Error("Failed to shutdown OpenTelemetry", zap.Error(err))
+			}
+		}()
+	}
 
 	// Initialize database connection and run migrations
 	if err := initializeDatabase(ctx, cfg, appLogger); err != nil {

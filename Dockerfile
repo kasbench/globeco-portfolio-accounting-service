@@ -41,7 +41,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o bin/cli ./cmd/cli
 
 # Stage 2: Production image
-FROM scratch AS production
+FROM alpine:3.19 AS production
+
+RUN apk add --no-cache bash coreutils
 
 # Import CA certificates and timezone data from builder
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
@@ -55,8 +57,10 @@ COPY --from=builder /etc/group /etc/group
 COPY --from=builder /app/bin/server /usr/local/bin/server
 COPY --from=builder /app/bin/cli /usr/local/bin/cli
 
-# Copy configuration template
-COPY --from=builder /app/config.yaml.example /etc/globeco/config.yaml
+# Copy configuration template to the correct location for the app to find it
+COPY --from=builder /app/config.yaml /etc/globeco-portfolio-accounting/config.yaml
+# To use your real config, uncomment the following and comment the above:
+# COPY --from=builder /app/config.yaml /etc/globeco-portfolio-accounting/config.yaml
 
 # Copy database migrations to multiple locations for flexibility
 COPY --from=builder /app/migrations /usr/local/share/migrations
@@ -167,7 +171,7 @@ RUN addgroup -g 1001 appuser && \
 COPY --from=builder /app/bin/cli /usr/local/bin/cli
 
 # Copy configuration template
-COPY --from=builder /app/config.yaml.example /etc/globeco/config.yaml
+COPY --from=builder /app/config.yaml.example /etc/globeco-portfolio-accounting/config.yaml
 
 # Copy database migrations
 COPY --from=builder /app/migrations /migrations
