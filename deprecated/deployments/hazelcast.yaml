@@ -1,0 +1,294 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hazelcast
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hazelcast
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "pods", "services"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hazelcast
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hazelcast
+subjects:
+- kind: ServiceAccount
+  name: hazelcast
+  namespace: globeco
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: globeco-portfolio-accounting-service-hazelcast-config
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: hazelcast-config
+data:
+  hazelcast-docker.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <hazelcast xsi:schemaLocation="http://www.hazelcast.com/schema/config hazelcast-config-5.3.xsd"
+               xmlns="http://www.hazelcast.com/schema/config"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        
+        <cluster-name>portfolio-accounting-cluster</cluster-name>
+        
+        <properties>
+            <property name="hazelcast.discovery.enabled">true</property>
+            <property name="hazelcast.discovery.public.ip.enabled">false</property>
+            <property name="hazelcast.kubernetes.service-dns">globeco-portfolio-accounting-service-cache.globeco.svc.cluster.local</property>
+        </properties>
+        
+        <network>
+            <port auto-increment="true" port-count="100">5701</port>
+            <outbound-ports>
+                <ports>0</ports>
+            </outbound-ports>
+            <join>
+                <multicast enabled="false"/>
+                <tcp-ip enabled="false"/>
+                <aws enabled="false"/>
+                <gcp enabled="false"/>
+                <azure enabled="false"/>
+                <kubernetes enabled="true">
+                    <namespace>globeco</namespace>
+                    <service-name>globeco-portfolio-accounting-service-cache</service-name>
+                </kubernetes>
+            </join>
+            <rest-api enabled="true">
+                <endpoint-group name="HEALTH_CHECK" enabled="true"/>
+            </rest-api>
+        </network>
+        
+        <map name="portfolios">
+            <time-to-live-seconds>3600</time-to-live-seconds>
+            <max-idle-seconds>1800</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="10000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="transactions">
+            <time-to-live-seconds>7200</time-to-live-seconds>
+            <max-idle-seconds>3600</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="50000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="balances">
+            <time-to-live-seconds>1800</time-to-live-seconds>
+            <max-idle-seconds>900</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="25000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <map name="external_service_cache">
+            <time-to-live-seconds>300</time-to-live-seconds>
+            <max-idle-seconds>180</max-idle-seconds>
+            <eviction eviction-policy="LRU" max-size-policy="PER_NODE" size="5000"/>
+            <backup-count>1</backup-count>
+            <async-backup-count>0</async-backup-count>
+        </map>
+        
+        <management-center scripting-enabled="false"/>
+        
+        <metrics enabled="true">
+            <management-center enabled="false"/>
+            <jmx enabled="true"/>
+        </metrics>
+        
+    </hazelcast> 
+  jvm.options: |
+    # Add custom JVM options here. For example:
+    # -Xms1g
+    # -Xmx1g 
+
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: globeco-portfolio-accounting-service-hazelcast
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/version: "5.3"
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: globeco-suite
+    app.kubernetes.io/managed-by: kubernetes
+spec:
+  serviceName: globeco-portfolio-accounting-service-cache
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: cache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: globeco-portfolio-accounting
+        app.kubernetes.io/instance: production
+        app.kubernetes.io/component: cache
+        app.kubernetes.io/part-of: globeco-suite
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: hazelcast
+      containers:
+      - name: hazelcast
+        image: hazelcast/hazelcast:latest
+        ports:
+        - containerPort: 5701
+          name: hazelcast
+        - containerPort: 8080
+          name: metrics
+        env:
+        - name: HZ_CLUSTERNAME
+          value: "portfolio-accounting-cluster"
+        volumeMounts:
+        - name: hazelcast-config
+          mountPath: /opt/hazelcast/config/hazelcast-docker.xml
+          subPath: hazelcast-docker.xml
+        - name: hazelcast-config
+          mountPath: /opt/hazelcast/config/jvm.options
+          subPath: jvm.options
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /hazelcast/health/node-state
+            port: 5701
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /hazelcast/health/ready
+            port: 5701
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: hazelcast-config
+        configMap:
+          name: globeco-portfolio-accounting-service-hazelcast-config
+  volumeClaimTemplates:
+  - metadata:
+      name: hazelcast-data
+      labels:
+        app.kubernetes.io/name: globeco-portfolio-accounting
+        app.kubernetes.io/component: cache
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: local-storage
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: globeco-portfolio-accounting-service-cache
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: cache
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for StatefulSet
+  ports:
+  - port: 5701
+    targetPort: 5701
+    protocol: TCP
+    name: hazelcast
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-lb-service
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/instance: production
+    app.kubernetes.io/component: cache-lb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5701
+    targetPort: 5701
+    protocol: TCP
+    name: hazelcast
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hazelcast-pdb
+  namespace: globeco
+  labels:
+    app.kubernetes.io/name: globeco-portfolio-accounting
+    app.kubernetes.io/component: cache
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: globeco-portfolio-accounting
+      app.kubernetes.io/component: cache 
