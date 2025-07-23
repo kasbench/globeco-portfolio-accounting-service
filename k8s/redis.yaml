@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config-portfolio-accounting
+  namespace: globeco
+data:
+  redis.conf: |
+    # Basic Redis configuration
+    bind 0.0.0.0
+    port 6379
+
+    # Disable RDB snapshots to avoid disk write issues
+    save ""
+    stop-writes-on-bgsave-error no
+
+    # Use AOF for persistence instead (more reliable for K8s)
+    appendonly yes
+    appendfsync everysec
+    appendfilename "appendonly.aof"
+
+    # Set data directory
+    dir /data
+
+    # Logging
+    loglevel notice
+
+    # Memory management
+    maxmemory-policy allkeys-lru
+
+    # Disable protected mode for K8s
+    protected-mode no
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: globeco-portfolio-accounting-service-redis
+  namespace: globeco
+  labels:
+    app: globeco-portfolio-accounting-service-redis
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: globeco-portfolio-accounting-service-redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: globeco-portfolio-accounting-service-redis
+  namespace: globeco
+spec:
+  serviceName: globeco-portfolio-accounting-service-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: globeco-portfolio-accounting-service-redis
+  template:
+    metadata:
+      labels:
+        app: globeco-portfolio-accounting-service-redis
+    spec:
+      securityContext:
+        fsGroup: 999  # Redis user group
+        runAsNonRoot: true
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server"]
+          args: ["/etc/redis/redis.conf"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-data-portfolio-accounting
+              mountPath: /data
+            - name: redis-config
+              mountPath: /etc/redis
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "100Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            runAsUser: 999  # Redis user
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config-portfolio-accounting
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data-portfolio-accounting
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: local-storage
+        resources:
+          requests:
+            storage: 2Gi

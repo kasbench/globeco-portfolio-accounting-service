@@ -2841,3 +2841,5 @@ if transaction.IsCashTransaction() && b.IsCashBalance() {
     - Upgraded OTel Go modules to v1.37.0 and cleaned up dependencies
     - Verified: **Build and all tests pass**
     - Next: Deploy and confirm metrics/traces in OTel Collector, Prometheus, and Jaeger
+
+Update request: GO_OTEL_CONFIGURATION_GUIDE.md to provide a comprehensive, standardized OpenTelemetry instrumentation guide for Go applications in the GlobeCo suite, using the Java guide as a template and referencing OTEL_CONFIGURATION_GUIDE.md for correct endpoints and ports.

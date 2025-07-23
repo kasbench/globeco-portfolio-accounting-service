@@ -62,6 +62,7 @@ data:
             <property name="hazelcast.discovery.enabled">true</property>
             <property name="hazelcast.discovery.public.ip.enabled">false</property>
             <property name="hazelcast.kubernetes.service-dns">globeco-portfolio-accounting-service-cache.globeco.svc.cluster.local</property>
+            <property name="hazelcast.mc.prometheusExporter.enabled">true</property>
         </properties>
         
         <network>
