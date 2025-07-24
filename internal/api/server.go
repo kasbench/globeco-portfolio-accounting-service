@@ -17,6 +17,7 @@ import (
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/domain/repositories"
 	domainServices "github.com/kasbench/globeco-portfolio-accounting-service/internal/domain/services"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/cache"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/database/postgresql"
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/infrastructure/external"
@@ -32,6 +33,9 @@ type Server struct {
 
 	// Database
 	db *database.DB
+
+	// Cache
+	cacheManager *cache.CacheManager
 
 	// External service clients
 	portfolioClient external.PortfolioClient
@@ -66,6 +70,10 @@ func NewServer(cfg *config.Config, lg logger.Logger) (*Server, error) {
 
 	if err := server.initializeDatabase(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	if err := server.initializeCache(); err != nil {
+		return nil, fmt.Errorf("failed to initialize cache: %w", err)
 	}
 
 	if err := server.initializeExternalClients(); err != nil {
@@ -114,6 +122,49 @@ func (s *Server) initializeDatabase() error {
 
 	s.db = db
 	s.logger.Info("Database connection initialized successfully")
+	return nil
+}
+
+// initializeCache initializes cache connection
+func (s *Server) initializeCache() error {
+	s.logger.Info("Initializing cache")
+
+	// Create cache configuration from main config
+	cacheConfig := cache.Config{
+		Type:          cache.CacheTypeRedis,
+		Enabled:       s.config.Cache.Enabled,
+		KeyPrefix:     "portfolio-accounting",
+		DefaultTTL:    s.config.Cache.TTL,
+		EnableMetrics: true,
+		EnableLogging: true,
+		Redis: cache.RedisConfig{
+			Address:      s.config.Cache.Address,
+			Password:     s.config.Cache.Password,
+			Database:     s.config.Cache.Database,
+			DialTimeout:  s.config.Cache.Timeout,
+			ReadTimeout:  s.config.Cache.Timeout,
+			WriteTimeout: s.config.Cache.Timeout,
+		},
+	}
+
+	// Create cache manager
+	cacheManager, err := cache.NewCacheManager(cacheConfig, s.logger)
+	if err != nil {
+		return fmt.Errorf("failed to create cache manager: %w", err)
+	}
+
+	// Test cache connectivity
+	if cacheConfig.Enabled {
+		if err := cacheManager.Health(); err != nil {
+			s.logger.Warn("Cache health check failed, continuing without cache", 
+				zap.Error(err))
+			// Don't fail startup if cache is unavailable, just log warning
+		} else {
+			s.logger.Info("Cache connection established successfully")
+		}
+	}
+
+	s.cacheManager = cacheManager
 	return nil
 }
 
@@ -398,6 +449,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Close cache connection
+	if s.cacheManager != nil {
+		if err := s.cacheManager.Close(); err != nil {
+			s.logger.Error("Failed to close cache connection", zap.Error(err))
+		}
+	}
+
 	// Close database connection
 	if s.db != nil {
 		if err := s.db.Close(); err != nil {
@@ -421,11 +479,19 @@ func (s *Server) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("HTTP server not initialized")
 	}
 
-	// TODO: Add comprehensive health checks when dependencies are integrated
-	// - Database connection check
-	// - Cache connection check
-	// - External services check
-	// - Application services check
+	// Database health check
+	if s.db != nil {
+		if err := s.db.HealthCheck(ctx); err != nil {
+			return fmt.Errorf("database health check failed: %w", err)
+		}
+	}
+
+	// Cache health check (if enabled)
+	if s.cacheManager != nil && s.cacheManager.IsEnabled() {
+		if err := s.cacheManager.Health(); err != nil {
+			return fmt.Errorf("cache health check failed: %w", err)
+		}
+	}
 
 	return nil
 }

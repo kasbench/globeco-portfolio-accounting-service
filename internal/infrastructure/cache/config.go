@@ -12,8 +12,8 @@ import (
 type CacheType string
 
 const (
-	// CacheTypeHazelcast represents Hazelcast cache implementation
-	CacheTypeHazelcast CacheType = "hazelcast"
+	// CacheTypeRedis represents Redis cache implementation
+	CacheTypeRedis CacheType = "redis"
 	// CacheTypeMemory represents in-memory cache implementation
 	CacheTypeMemory CacheType = "memory"
 	// CacheTypeNoop represents no-op cache implementation for testing
@@ -34,8 +34,8 @@ type Config struct {
 	// DefaultTTL is the default time-to-live for cache entries
 	DefaultTTL time.Duration `mapstructure:"default_ttl" json:"default_ttl"`
 
-	// Hazelcast specific configuration
-	Hazelcast HazelcastConfig `mapstructure:"hazelcast" json:"hazelcast"`
+	// Redis specific configuration
+	Redis RedisConfig `mapstructure:"redis" json:"redis"`
 
 	// Memory cache specific configuration
 	Memory MemoryCacheConfig `mapstructure:"memory" json:"memory"`
@@ -67,9 +67,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Type {
-	case CacheTypeHazelcast:
-		if err := c.Hazelcast.Validate(); err != nil {
-			return fmt.Errorf("hazelcast config validation failed: %w", err)
+	case CacheTypeRedis:
+		if err := c.Redis.Validate(); err != nil {
+			return fmt.Errorf("redis config validation failed: %w", err)
 		}
 	case CacheTypeMemory:
 		if err := c.Memory.Validate(); err != nil {
@@ -91,7 +91,7 @@ func (c *Config) Validate() error {
 // SetDefaults sets default values for the configuration
 func (c *Config) SetDefaults() {
 	if c.Type == "" {
-		c.Type = CacheTypeMemory
+		c.Type = CacheTypeRedis
 	}
 
 	if c.KeyPrefix == "" {
@@ -102,58 +102,78 @@ func (c *Config) SetDefaults() {
 		c.DefaultTTL = 15 * time.Minute
 	}
 
-	// Set defaults for Hazelcast
-	c.Hazelcast.SetDefaults()
+	// Set defaults for Redis
+	c.Redis.SetDefaults()
 
 	// Set defaults for Memory cache
 	c.Memory.SetDefaults()
 }
 
-// Validate validates the Hazelcast configuration
-func (hc *HazelcastConfig) Validate() error {
-	if hc.ClusterName == "" {
-		return fmt.Errorf("cluster name is required")
+// Validate validates the Redis configuration
+func (rc *RedisConfig) Validate() error {
+	if rc.Address == "" {
+		return fmt.Errorf("redis address is required")
 	}
 
-	if hc.MapName == "" {
-		return fmt.Errorf("map name is required")
+	if rc.Database < 0 {
+		return fmt.Errorf("redis database cannot be negative")
 	}
 
-	if hc.ConnectionTimeout < 0 {
-		return fmt.Errorf("connection timeout cannot be negative")
+	if rc.PoolSize < 0 {
+		return fmt.Errorf("pool size cannot be negative")
 	}
 
-	if hc.ConnectionRetry < 0 {
-		return fmt.Errorf("connection retry cannot be negative")
+	if rc.MaxRetries < 0 {
+		return fmt.Errorf("max retries cannot be negative")
 	}
 
 	return nil
 }
 
-// SetDefaults sets default values for Hazelcast configuration
-func (hc *HazelcastConfig) SetDefaults() {
-	if hc.ClusterName == "" {
-		hc.ClusterName = "dev"
+// SetDefaults sets default values for Redis configuration
+func (rc *RedisConfig) SetDefaults() {
+	if rc.Address == "" {
+		rc.Address = "globeco-portfolio-accounting-service-redis:6379"
 	}
 
-	if len(hc.ClusterMembers) == 0 {
-		hc.ClusterMembers = []string{"127.0.0.1:5701"}
+	if rc.Database == 0 {
+		rc.Database = 0
 	}
 
-	if hc.ConnectionTimeout == 0 {
-		hc.ConnectionTimeout = 30 * time.Second
+	if rc.PoolSize == 0 {
+		rc.PoolSize = 10
 	}
 
-	if hc.ConnectionRetry == 0 {
-		hc.ConnectionRetry = 3
+	if rc.MinIdleConns == 0 {
+		rc.MinIdleConns = 2
 	}
 
-	if hc.MapName == "" {
-		hc.MapName = "portfolio-accounting-cache"
+	if rc.MaxRetries == 0 {
+		rc.MaxRetries = 3
 	}
 
-	if hc.Serialization == "" {
-		hc.Serialization = "json"
+	if rc.DialTimeout == 0 {
+		rc.DialTimeout = 5 * time.Second
+	}
+
+	if rc.ReadTimeout == 0 {
+		rc.ReadTimeout = 5 * time.Second
+	}
+
+	if rc.WriteTimeout == 0 {
+		rc.WriteTimeout = 5 * time.Second
+	}
+
+	if rc.PoolTimeout == 0 {
+		rc.PoolTimeout = 5 * time.Second
+	}
+
+	if rc.IdleTimeout == 0 {
+		rc.IdleTimeout = 5 * time.Minute
+	}
+
+	if rc.IdleCheckFreq == 0 {
+		rc.IdleCheckFreq = 1 * time.Minute
 	}
 }
 
@@ -211,8 +231,8 @@ func (cf *CacheFactory) CreateCache(config Config) (Cache, error) {
 	}
 
 	switch config.Type {
-	case CacheTypeHazelcast:
-		return cf.createHazelcastCache(config)
+	case CacheTypeRedis:
+		return cf.createRedisCache(config)
 	case CacheTypeMemory:
 		return cf.createMemoryCache(config)
 	case CacheTypeNoop:
@@ -222,21 +242,21 @@ func (cf *CacheFactory) CreateCache(config Config) (Cache, error) {
 	}
 }
 
-// createHazelcastCache creates a Hazelcast cache instance
-func (cf *CacheFactory) createHazelcastCache(config Config) (Cache, error) {
-	hazelcastConfig := config.Hazelcast
-	hazelcastConfig.KeyPrefix = config.KeyPrefix
-	hazelcastConfig.EnableMetrics = config.EnableMetrics
-	hazelcastConfig.EnableLogging = config.EnableLogging
+// createRedisCache creates a Redis cache instance
+func (cf *CacheFactory) createRedisCache(config Config) (Cache, error) {
+	redisConfig := config.Redis
+	redisConfig.KeyPrefix = config.KeyPrefix
+	redisConfig.EnableMetrics = config.EnableMetrics
+	redisConfig.EnableLogging = config.EnableLogging
 
-	cache, err := NewHazelcastCache(hazelcastConfig, cf.logger)
+	cache, err := NewRedisCache(redisConfig, cf.logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Hazelcast cache: %w", err)
+		return nil, fmt.Errorf("failed to create Redis cache: %w", err)
 	}
 
-	cf.logger.Info("Hazelcast cache created successfully",
-		logger.String("cluster", hazelcastConfig.ClusterName),
-		logger.String("map", hazelcastConfig.MapName))
+	cf.logger.Info("Redis cache created successfully",
+		logger.String("address", redisConfig.Address),
+		logger.Int("database", redisConfig.Database))
 
 	return cache, nil
 }

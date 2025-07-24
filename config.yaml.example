@@ -25,11 +25,9 @@ database:
 
 cache:
   enabled: true
-  hosts:
-    - "localhost:5701"
-  cluster_name: "globeco-portfolio-accounting"
-  username: ""
+  address: "globeco-portfolio-accounting-service-redis:6379"
   password: ""
+  database: 0
   ttl: "1h"
   timeout: "5s"
 

@@ -293,7 +293,7 @@ func printConfiguration(cfg *config.Config, logger logger.Logger) {
 		zap.String("database.database", cfg.Database.Database),
 		zap.String("database.ssl_mode", cfg.Database.SSLMode),
 		zap.Bool("cache.enabled", cfg.Cache.Enabled),
-		zap.String("cache.cluster_name", cfg.Cache.ClusterName),
+		zap.String("cache.address", cfg.Cache.Address),
 		zap.Bool("kafka.enabled", cfg.Kafka.Enabled),
 		zap.String("logging.level", cfg.Logging.Level),
 		zap.String("logging.format", cfg.Logging.Format),

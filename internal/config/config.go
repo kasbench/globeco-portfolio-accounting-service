@@ -47,13 +47,12 @@ type DatabaseConfig struct {
 
 // CacheConfig holds cache configuration
 type CacheConfig struct {
-	Enabled     bool          `mapstructure:"enabled"`
-	Hosts       []string      `mapstructure:"hosts"`
-	ClusterName string        `mapstructure:"cluster_name"`
-	Username    string        `mapstructure:"username"`
-	Password    string        `mapstructure:"password"`
-	TTL         time.Duration `mapstructure:"ttl"`
-	Timeout     time.Duration `mapstructure:"timeout"`
+	Enabled  bool          `mapstructure:"enabled"`
+	Address  string        `mapstructure:"address"`
+	Password string        `mapstructure:"password"`
+	Database int           `mapstructure:"database"`
+	TTL      time.Duration `mapstructure:"ttl"`
+	Timeout  time.Duration `mapstructure:"timeout"`
 }
 
 // KafkaConfig holds Kafka configuration
@@ -163,8 +162,9 @@ func setDefaults() {
 
 	// Cache defaults
 	viper.SetDefault("cache.enabled", true)
-	viper.SetDefault("cache.hosts", []string{"globeco-portfolio-accounting-service-cache:5701"})
-	viper.SetDefault("cache.cluster_name", "globeco-portfolio-accounting")
+	viper.SetDefault("cache.address", "globeco-portfolio-accounting-service-redis:6379")
+	viper.SetDefault("cache.password", "")
+	viper.SetDefault("cache.database", 0)
 	viper.SetDefault("cache.ttl", "1h")
 	viper.SetDefault("cache.timeout", "5s")
 
@@ -231,8 +231,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid database port: %d", c.Database.Port)
 	}
 
-	if c.Cache.Enabled && len(c.Cache.Hosts) == 0 {
-		return fmt.Errorf("cache hosts are required when cache is enabled")
+	if c.Cache.Enabled && c.Cache.Address == "" {
+		return fmt.Errorf("cache address is required when cache is enabled")
 	}
 
 	if c.Kafka.Enabled && len(c.Kafka.Brokers) == 0 {
