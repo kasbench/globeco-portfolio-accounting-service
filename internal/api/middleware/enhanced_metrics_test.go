@@ -222,13 +222,13 @@ func TestEnhancedMetricsMiddleware_extractPathPattern(t *testing.T) {
 		{
 			name:     "Very long unknown path",
 			path:     "/very/long/unknown/path/that/exceeds/the/maximum/length/limit/and/should/be/truncated/to/prevent/cardinality/explosion",
-			expected: "/unknown_long_path",
+			expected: "/path_too_long",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := middleware.extractPathPattern(tt.path)
+			result := middleware.extractPathPatternSafely(tt.path)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -250,17 +250,174 @@ func TestEnhancedMetricsMiddleware_pathPatternCaching(t *testing.T) {
 	path := "/api/v1/transaction/123"
 	
 	// First call should compute and cache
-	result1 := middleware.extractPathPattern(path)
+	result1 := middleware.extractPathPatternSafely(path)
 	assert.Equal(t, "/api/v1/transaction/{id}", result1)
 	
 	// Second call should use cache
-	result2 := middleware.extractPathPattern(path)
+	result2 := middleware.extractPathPatternSafely(path)
 	assert.Equal(t, "/api/v1/transaction/{id}", result2)
 	
 	// Verify it's in the cache
 	cached, exists := middleware.pathPatterns[path]
 	assert.True(t, exists)
 	assert.Equal(t, "/api/v1/transaction/{id}", cached)
+}
+
+func TestEnhancedMetricsMiddleware_ErrorHandling(t *testing.T) {
+	// Setup test meter provider
+	setupTestMeterProvider(t)
+
+	config := EnhancedMetricsConfig{
+		ServiceName:           "test-service",
+		Enabled:               true,
+		MaxPathPatternCache:   2, // Small cache for testing
+		MaxPathLength:         20, // Short length for testing
+		EnableFailsafeLogging: true,
+	}
+	
+	middleware := NewEnhancedMetricsMiddleware(config)
+	require.NotNil(t, middleware)
+
+	// Test path length limit
+	longPath := "/this/is/a/very/long/path/that/exceeds/limit"
+	result := middleware.extractPathPatternSafely(longPath)
+	assert.Equal(t, "/path_too_long", result)
+
+	// Test cache limit
+	middleware.extractPathPatternSafely("/path1")
+	middleware.extractPathPatternSafely("/path2")
+	// This should not be cached due to limit
+	result = middleware.extractPathPatternSafely("/path3")
+	assert.Equal(t, "/path3", result)
+	
+	// Verify cache size is at limit
+	assert.Equal(t, 2, len(middleware.pathPatterns))
+}
+
+func TestEnhancedMetricsMiddleware_GetMetricsStatus(t *testing.T) {
+	// Setup test meter provider
+	setupTestMeterProvider(t)
+
+	config := EnhancedMetricsConfig{
+		ServiceName: "test-service",
+		Enabled:     true,
+	}
+	
+	middleware := NewEnhancedMetricsMiddleware(config)
+	require.NotNil(t, middleware)
+
+	status := middleware.GetMetricsStatus()
+	
+	assert.True(t, status["enabled"].(bool))
+	assert.False(t, status["initialization_failed"].(bool))
+	assert.Equal(t, int64(0), status["error_count"].(int64))
+	assert.Equal(t, 0, status["cache_size"].(int))
+	assert.Equal(t, 1000, status["max_cache_size"].(int))
+}
+
+func TestEnhancedMetricsMiddleware_SanitizeMethods(t *testing.T) {
+	// Setup test meter provider
+	setupTestMeterProvider(t)
+
+	config := EnhancedMetricsConfig{
+		ServiceName: "test-service",
+		Enabled:     true,
+	}
+	
+	middleware := NewEnhancedMetricsMiddleware(config)
+	require.NotNil(t, middleware)
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"get", "GET"},
+		{"POST", "POST"},
+		{" put ", "PUT"},
+		{"", "UNKNOWN"},
+		{"VERYLONGMETHOD", "INVALID"},
+	}
+
+	for _, tt := range tests {
+		result := middleware.sanitizeMethod(tt.input)
+		assert.Equal(t, tt.expected, result)
+	}
+}
+
+func TestEnhancedMetricsMiddleware_SanitizeStatus(t *testing.T) {
+	// Setup test meter provider
+	setupTestMeterProvider(t)
+
+	config := EnhancedMetricsConfig{
+		ServiceName: "test-service",
+		Enabled:     true,
+	}
+	
+	middleware := NewEnhancedMetricsMiddleware(config)
+	require.NotNil(t, middleware)
+
+	tests := []struct {
+		input    int
+		expected string
+	}{
+		{200, "200"},
+		{404, "404"},
+		{500, "500"},
+		{99, "unknown"},   // Below valid range
+		{600, "unknown"},  // Above valid range
+	}
+
+	for _, tt := range tests {
+		result := middleware.sanitizeStatus(tt.input)
+		assert.Equal(t, tt.expected, result)
+	}
+}
+
+func TestEnhancedMetricsMiddleware_InitializationFailure(t *testing.T) {
+	// Reset the global meter provider to simulate OpenTelemetry unavailability
+	originalProvider := otel.GetMeterProvider()
+	otel.SetMeterProvider(nil)
+	
+	// Clean up after test
+	t.Cleanup(func() {
+		otel.SetMeterProvider(originalProvider)
+	})
+	
+	config := EnhancedMetricsConfig{
+		ServiceName: "test-service",
+		Enabled:     true,
+	}
+	
+	// This should handle the case where OpenTelemetry is not properly initialized
+	middleware := NewEnhancedMetricsMiddleware(config)
+	require.NotNil(t, middleware)
+	
+	// Middleware should be disabled due to initialization failure
+	assert.False(t, middleware.enabled)
+	assert.True(t, middleware.initializationFailed)
+	
+	// Handler should return a no-op middleware
+	handler := middleware.Handler()
+	require.NotNil(t, handler)
+	
+	// Test that the no-op handler works
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
+	
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	
+	handler(testHandler).ServeHTTP(w, req)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "OK", w.Body.String())
+	
+	// Check status
+	status := middleware.GetMetricsStatus()
+	assert.False(t, status["enabled"].(bool))
+	assert.True(t, status["initialization_failed"].(bool))
 }
 
 func TestEnhancedMetricsResponseWriter(t *testing.T) {
