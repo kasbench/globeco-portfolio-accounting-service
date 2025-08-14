@@ -75,9 +75,16 @@ type LoggingConfig struct {
 
 // MetricsConfig holds metrics configuration
 type MetricsConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Path    string `mapstructure:"path"`
-	Port    int    `mapstructure:"port"`
+	Enabled  bool                  `mapstructure:"enabled"`
+	Path     string                `mapstructure:"path"`
+	Port     int                   `mapstructure:"port"`
+	Enhanced EnhancedMetricsConfig `mapstructure:"enhanced"`
+}
+
+// EnhancedMetricsConfig holds enhanced metrics configuration
+type EnhancedMetricsConfig struct {
+	Enabled     bool   `mapstructure:"enabled"`
+	ServiceName string `mapstructure:"service_name"`
 }
 
 // TracingConfig holds tracing configuration
@@ -186,6 +193,8 @@ func setDefaults() {
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.path", "/metrics")
 	viper.SetDefault("metrics.port", 9090)
+	viper.SetDefault("metrics.enhanced.enabled", true)
+	viper.SetDefault("metrics.enhanced.service_name", "globeco-portfolio-accounting-service")
 
 	// Tracing defaults
 	viper.SetDefault("tracing.enabled", true)

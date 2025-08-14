@@ -50,6 +50,9 @@ metrics:
   enabled: true
   path: "/metrics"
   port: 9090
+  enhanced:
+    enabled: true
+    service_name: "globeco-portfolio-accounting-service"
 
 tracing:
   enabled: true

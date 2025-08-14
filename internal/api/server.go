@@ -352,11 +352,12 @@ func (s *Server) setupHTTPServer() error {
 
 	// Setup router configuration
 	routerConfig := routes.Config{
-		ServiceName:   "globeco-portfolio-accounting-service",
-		Version:       "1.0.0",
-		CORSConfig:    corsConfig,
-		EnableMetrics: true,
-		EnableCORS:    true,
+		ServiceName:           "globeco-portfolio-accounting-service",
+		Version:               "1.0.0",
+		CORSConfig:            corsConfig,
+		EnableMetrics:         s.config.Metrics.Enabled,
+		EnableEnhancedMetrics: s.config.Metrics.Enhanced.Enabled,
+		EnableCORS:            true,
 	}
 
 	// Setup router dependencies

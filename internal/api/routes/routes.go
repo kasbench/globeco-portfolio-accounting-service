@@ -16,12 +16,13 @@ import (
 
 // Config holds router configuration
 type Config struct {
-	ServiceName   string
-	Version       string
-	Environment   string
-	EnableMetrics bool
-	EnableCORS    bool
-	CORSConfig    apiMiddleware.CORSConfig
+	ServiceName           string
+	Version               string
+	Environment           string
+	EnableMetrics         bool
+	EnableEnhancedMetrics bool
+	EnableCORS            bool
+	CORSConfig            apiMiddleware.CORSConfig
 }
 
 // RouterDependencies holds all dependencies needed for route setup
@@ -50,10 +51,27 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 		metricsMiddleware = apiMiddleware.NewMetricsMiddleware(config.ServiceName)
 	}
 
+	// Create enhanced metrics middleware
+	var enhancedMetricsMiddleware *apiMiddleware.EnhancedMetricsMiddleware
+	if config.EnableEnhancedMetrics {
+		enhancedMetricsConfig := apiMiddleware.EnhancedMetricsConfig{
+			ServiceName: config.ServiceName,
+			Enabled:     true,
+		}
+		enhancedMetricsMiddleware = apiMiddleware.NewEnhancedMetricsMiddleware(enhancedMetricsConfig)
+	}
+
 	// Global middleware stack
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+
+	// Add enhanced metrics middleware after recovery but before other middleware
+	// This ensures it captures all requests including errors
+	if config.EnableEnhancedMetrics && enhancedMetricsMiddleware != nil {
+		r.Use(enhancedMetricsMiddleware.Handler())
+	}
+
 	r.Use(apiMiddleware.RequestIDMiddleware())
 	r.Use(apiMiddleware.CorrelationIDMiddleware())
 

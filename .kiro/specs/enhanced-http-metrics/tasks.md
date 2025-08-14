@@ -8,7 +8,7 @@
   - Use milliseconds for histogram duration with buckets [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 2. Integrate enhanced metrics middleware into router configuration
+- [x] 2. Integrate enhanced metrics middleware into router configuration
   - Modify `internal/api/routes/routes.go` to include enhanced metrics middleware in the middleware stack
   - Add configuration option to enable/disable enhanced metrics
   - Ensure middleware runs before existing middleware to capture all requests

@@ -22,6 +22,10 @@ spec:
           env:
             - name: KAFKA_BROKERS
               value: "globeco-execution-service-kafka:9093"
+            - name: GLOBECO_PA_METRICS_ENHANCED_ENABLED
+              value: "true"
+            - name: GLOBECO_PA_METRICS_ENHANCED_SERVICE_NAME
+              value: "globeco-portfolio-accounting-service"
           resources:
             requests:
               cpu: 500m
