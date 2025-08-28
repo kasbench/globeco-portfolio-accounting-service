@@ -208,7 +208,7 @@ func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, option
 		if err != nil {
 			return nil, fmt.Errorf("file sorting failed: %w", err)
 		}
-		defer os.Remove(sortedFile) // Clean up temporary sorted file
+		// defer os.Remove(sortedFile) // Clean up temporary sorted file
 	}
 
 	// Step 3: Process file in batches
