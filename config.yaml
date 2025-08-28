@@ -9,6 +9,10 @@ server:
   idle_timeout: "120s"
   graceful_shutdown_timeout: "30s"
 
+client:
+  server_url: "http://globeco-portfolio-accounting-service:8087"
+  timeout: "30s"
+
 database:
   host: "globeco-portfolio-accounting-service-postgresql"
   port: 5432

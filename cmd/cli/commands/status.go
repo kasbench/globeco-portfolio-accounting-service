@@ -77,7 +77,18 @@ func runStatusCommand(ctx context.Context, flags *StatusFlags) error {
 	// Determine service URL
 	serviceURL := flags.URL
 	if serviceURL == "" {
-		serviceURL = fmt.Sprintf("http://%s:%d", config.Server.Host, config.Server.Port)
+		// Use client configuration if available
+		if config.Client.ServerURL != "" {
+			serviceURL = config.Client.ServerURL
+		} else {
+			// Fallback to server configuration with localhost fix
+			host := config.Server.Host
+			// If host is 0.0.0.0 (server bind address), use localhost for client connections
+			if host == "" || host == "0.0.0.0" {
+				host = "localhost"
+			}
+			serviceURL = fmt.Sprintf("http://%s:%d", host, config.Server.Port)
+		}
 	}
 
 	logger.Info("Checking service status",

@@ -449,9 +449,17 @@ func (p *FileProcessor) processBatches(ctx context.Context, filePath string, opt
 
 // getServiceURL builds the base URL for the backend service
 func (p *FileProcessor) getServiceURL() string {
+	// Use client configuration if available
+	if p.config.Client.ServerURL != "" {
+		return p.config.Client.ServerURL
+	}
+
+	// Fallback to server configuration with localhost fix
 	host := p.config.Server.Host
 	port := p.config.Server.Port
-	if host == "" {
+
+	// If host is 0.0.0.0 (server bind address), use localhost for client connections
+	if host == "" || host == "0.0.0.0" {
 		host = "localhost"
 	}
 	if port == 0 {

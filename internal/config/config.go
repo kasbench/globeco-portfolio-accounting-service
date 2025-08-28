@@ -11,6 +11,7 @@ import (
 // Config holds all configuration for our application
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
+	Client   ClientConfig   `mapstructure:"client"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Cache    CacheConfig    `mapstructure:"cache"`
 	Kafka    KafkaConfig    `mapstructure:"kafka"`
@@ -28,6 +29,12 @@ type ServerConfig struct {
 	WriteTimeout            time.Duration `mapstructure:"write_timeout"`
 	IdleTimeout             time.Duration `mapstructure:"idle_timeout"`
 	GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
+}
+
+// ClientConfig holds client configuration for CLI and other clients
+type ClientConfig struct {
+	ServerURL string        `mapstructure:"server_url"`
+	Timeout   time.Duration `mapstructure:"timeout"`
 }
 
 // DatabaseConfig holds database configuration
@@ -153,6 +160,10 @@ func setDefaults() {
 	viper.SetDefault("server.write_timeout", "30s")
 	viper.SetDefault("server.idle_timeout", "120s")
 	viper.SetDefault("server.graceful_shutdown_timeout", "30s")
+
+	// Client defaults
+	viper.SetDefault("client.server_url", "http://localhost:8087")
+	viper.SetDefault("client.timeout", "30s")
 
 	// Database defaults
 	viper.SetDefault("database.host", "globeco-portfolio-accounting-service-postgresql")
