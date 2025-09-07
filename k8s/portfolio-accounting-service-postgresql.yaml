@@ -26,6 +26,23 @@ spec:
       targetPort: 5432
   type: ClusterIP
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portfolio-accounting-service-postgres-pvc
+  namespace: globeco
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-storage
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app: portfolio-accounting-service-postgres
+      type: local
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -71,13 +88,7 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-  volumeClaimTemplates:
-    - metadata:
-        name: postgres-data
-        namespace: globeco
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        storageClassName: local-storage
-        resources:
-          requests:
-            storage: 5Gi
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: portfolio-accounting-service-postgres-pvc
