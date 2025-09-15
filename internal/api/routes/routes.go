@@ -10,6 +10,7 @@ import (
 
 	"github.com/kasbench/globeco-portfolio-accounting-service/internal/api/handlers"
 	apiMiddleware "github.com/kasbench/globeco-portfolio-accounting-service/internal/api/middleware"
+	"github.com/kasbench/globeco-portfolio-accounting-service/internal/config"
 	"github.com/kasbench/globeco-portfolio-accounting-service/pkg/logger"
 	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -21,6 +22,7 @@ type Config struct {
 	Environment           string
 	EnableMetrics         bool
 	EnableEnhancedMetrics bool
+	EnhancedMetricsConfig config.EnhancedMetricsConfig
 	EnableCORS            bool
 	CORSConfig            apiMiddleware.CORSConfig
 }
@@ -55,8 +57,11 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 	var enhancedMetricsMiddleware *apiMiddleware.EnhancedMetricsMiddleware
 	if config.EnableEnhancedMetrics {
 		enhancedMetricsConfig := apiMiddleware.EnhancedMetricsConfig{
-			ServiceName: config.ServiceName,
-			Enabled:     true,
+			ServiceName:           config.ServiceName,
+			Enabled:               true,
+			MaxPathPatternCache:   config.EnhancedMetricsConfig.MaxPathPatternCache,
+			MaxPathLength:         config.EnhancedMetricsConfig.MaxPathLength,
+			EnableFailsafeLogging: config.EnhancedMetricsConfig.EnableFailsafeLogging,
 		}
 		enhancedMetricsMiddleware = apiMiddleware.NewEnhancedMetricsMiddleware(enhancedMetricsConfig)
 	}

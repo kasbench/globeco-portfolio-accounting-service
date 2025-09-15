@@ -156,7 +156,7 @@ func (s *Server) initializeCache() error {
 	// Test cache connectivity
 	if cacheConfig.Enabled {
 		if err := cacheManager.Health(); err != nil {
-			s.logger.Warn("Cache health check failed, continuing without cache", 
+			s.logger.Warn("Cache health check failed, continuing without cache",
 				zap.Error(err))
 			// Don't fail startup if cache is unavailable, just log warning
 		} else {
@@ -357,6 +357,7 @@ func (s *Server) setupHTTPServer() error {
 		CORSConfig:            corsConfig,
 		EnableMetrics:         s.config.Metrics.Enabled,
 		EnableEnhancedMetrics: s.config.Metrics.Enhanced.Enabled,
+		EnhancedMetricsConfig: s.config.Metrics.Enhanced,
 		EnableCORS:            true,
 	}
 

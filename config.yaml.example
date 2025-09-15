@@ -57,6 +57,9 @@ metrics:
   enhanced:
     enabled: true
     service_name: "globeco-portfolio-accounting-service"
+    max_path_pattern_cache: 500    # Reduced from default 1000 to prevent memory issues
+    max_path_length: 100           # Maximum path length to prevent cardinality explosion
+    enable_failsafe_logging: false # Set to true for debugging cache issues
 
 tracing:
   enabled: true

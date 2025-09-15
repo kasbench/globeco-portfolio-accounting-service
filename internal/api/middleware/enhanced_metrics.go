@@ -341,10 +341,10 @@ func (m *EnhancedMetricsMiddleware) extractPathPatternSafely(path string) string
 
 	// Prevent unlimited cache growth
 	if len(m.pathPatterns) >= m.maxPathPatternCache {
-		// Log warning about cache limit reached
-		m.logMetricError("Path pattern cache limit reached, not caching new patterns", "cache_limit_reached",
-			fmt.Errorf("cache size %d reached limit %d", len(m.pathPatterns), m.maxPathPatternCache))
-		return pattern
+		// Clear half the cache to make room for new patterns
+		m.clearHalfCache()
+		m.logMetricError("Path pattern cache limit reached, cleared half of cache", "cache_limit_reached",
+			fmt.Errorf("cache size %d reached limit %d, cleared to %d", len(m.pathPatterns)+m.maxPathPatternCache/2, m.maxPathPatternCache, len(m.pathPatterns)))
 	}
 
 	m.pathPatterns[path] = pattern
@@ -378,34 +378,49 @@ func (m *EnhancedMetricsMiddleware) normalizePathPattern(path string) string {
 	}
 
 	// Dynamic path pattern matching using regex
+	// Order matters - more specific patterns should come first
 	patterns := []struct {
 		regex   *regexp.Regexp
 		pattern string
 	}{
 		// Transaction by ID: /api/v1/transaction/{id}
 		{
-			regex:   regexp.MustCompile(`^/api/v1/transaction/[^/]+$`),
+			regex:   regexp.MustCompile(`^/api/v1/transaction/[^/]+/?$`),
 			pattern: "/api/v1/transaction/{id}",
 		},
 		// Balance by ID: /api/v1/balance/{id}
 		{
-			regex:   regexp.MustCompile(`^/api/v1/balance/[^/]+$`),
+			regex:   regexp.MustCompile(`^/api/v1/balance/[^/]+/?$`),
 			pattern: "/api/v1/balance/{id}",
 		},
 		// Portfolio summary: /api/v1/portfolios/{portfolioId}/summary
 		{
-			regex:   regexp.MustCompile(`^/api/v1/portfolios/[^/]+/summary$`),
+			regex:   regexp.MustCompile(`^/api/v1/portfolios/[^/]+/summary/?$`),
 			pattern: "/api/v1/portfolios/{portfolioId}/summary",
+		},
+		// API v2 placeholder: /api/v2/* (must come before generic patterns)
+		{
+			regex:   regexp.MustCompile(`^/api/v2/.*$`),
+			pattern: "/api/v2/*",
 		},
 		// Swagger UI paths: /swagger/*
 		{
 			regex:   regexp.MustCompile(`^/swagger/.*$`),
 			pattern: "/swagger/*",
 		},
-		// API v2 placeholder: /api/v2/*
+		// Catch-all for any other API paths with IDs
 		{
-			regex:   regexp.MustCompile(`^/api/v2/.*$`),
-			pattern: "/api/v2/*",
+			regex:   regexp.MustCompile(`^/api/v\d+/[^/]+/[^/]+/?$`),
+			pattern: "/api/v*/resource/{id}",
+		},
+		// Generic UUID/ID patterns - catch any path with UUID-like or numeric IDs
+		{
+			regex:   regexp.MustCompile(`^(/[^/]*)+/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/?$`),
+			pattern: "/*/uuid",
+		},
+		{
+			regex:   regexp.MustCompile(`^(/[^/]*)+/\d+/?$`),
+			pattern: "/*/id",
 		},
 	}
 
@@ -416,12 +431,35 @@ func (m *EnhancedMetricsMiddleware) normalizePathPattern(path string) string {
 		}
 	}
 
-	// For unknown paths, return the path itself but limit length to prevent cardinality explosion
-	if len(path) > 100 {
-		return "/unknown_long_path"
+	// For unknown paths, create a generic pattern to prevent cardinality explosion
+	// Split path into segments and look for patterns
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	if len(segments) == 0 {
+		return "/"
 	}
 
-	return path
+	// Build a normalized pattern
+	var normalizedSegments []string
+	for _, segment := range segments {
+		// Check if segment looks like an ID (numeric, UUID, or long alphanumeric)
+		if m.looksLikeID(segment) {
+			normalizedSegments = append(normalizedSegments, "{id}")
+		} else if len(segment) > 50 {
+			// Very long segments are likely dynamic content
+			normalizedSegments = append(normalizedSegments, "{dynamic}")
+		} else {
+			normalizedSegments = append(normalizedSegments, segment)
+		}
+	}
+
+	normalizedPath := "/" + strings.Join(normalizedSegments, "/")
+
+	// Final safety check for path length
+	if len(normalizedPath) > 100 {
+		return "/unknown_complex_path"
+	}
+
+	return normalizedPath
 }
 
 // recordMetricSafely wraps metric recording with comprehensive error handling to prevent request blocking
@@ -509,6 +547,59 @@ func (m *EnhancedMetricsMiddleware) sanitizeStatus(statusCode int) string {
 		return "unknown"
 	}
 	return strconv.Itoa(statusCode)
+}
+
+// looksLikeID determines if a path segment looks like an ID or dynamic parameter
+func (m *EnhancedMetricsMiddleware) looksLikeID(segment string) bool {
+	if len(segment) == 0 {
+		return false
+	}
+
+	// Check for UUID pattern
+	if matched, _ := regexp.MatchString(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`, segment); matched {
+		return true
+	}
+
+	// Check for numeric ID
+	if matched, _ := regexp.MatchString(`^\d+$`, segment); matched {
+		return true
+	}
+
+	// Check for long alphanumeric strings (likely IDs)
+	if len(segment) > 10 && regexp.MustCompile(`^[a-zA-Z0-9]+$`).MatchString(segment) {
+		return true
+	}
+
+	// Check for base64-like strings
+	if len(segment) > 15 && regexp.MustCompile(`^[a-zA-Z0-9+/=]+$`).MatchString(segment) {
+		return true
+	}
+
+	return false
+}
+
+// clearHalfCache removes half of the cached patterns to make room for new ones
+// This method assumes the caller already holds the write lock
+func (m *EnhancedMetricsMiddleware) clearHalfCache() {
+	if len(m.pathPatterns) == 0 {
+		return
+	}
+
+	// Create a new map with half the capacity
+	newCache := make(map[string]string, m.maxPathPatternCache/2)
+	count := 0
+	targetSize := len(m.pathPatterns) / 2
+
+	// Keep the first half of entries (arbitrary but consistent)
+	for path, pattern := range m.pathPatterns {
+		if count >= targetSize {
+			break
+		}
+		newCache[path] = pattern
+		count++
+	}
+
+	m.pathPatterns = newCache
 }
 
 // GetMetricsStatus returns the current status of the metrics middleware for health checks

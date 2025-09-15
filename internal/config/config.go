@@ -90,8 +90,11 @@ type MetricsConfig struct {
 
 // EnhancedMetricsConfig holds enhanced metrics configuration
 type EnhancedMetricsConfig struct {
-	Enabled     bool   `mapstructure:"enabled"`
-	ServiceName string `mapstructure:"service_name"`
+	Enabled               bool   `mapstructure:"enabled"`
+	ServiceName           string `mapstructure:"service_name"`
+	MaxPathPatternCache   int    `mapstructure:"max_path_pattern_cache"`
+	MaxPathLength         int    `mapstructure:"max_path_length"`
+	EnableFailsafeLogging bool   `mapstructure:"enable_failsafe_logging"`
 }
 
 // TracingConfig holds tracing configuration
