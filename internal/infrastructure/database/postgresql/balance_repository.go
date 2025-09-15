@@ -54,7 +54,7 @@ func (r *BalanceRepository) Create(ctx context.Context, balance *repositories.Ba
 		}
 	}
 
-	r.logger.Info("Balance created",
+	r.logger.Debug("Balance created",
 		logger.Int64("id", balance.ID),
 		logger.String("portfolioId", balance.PortfolioID))
 
@@ -89,7 +89,7 @@ func (r *BalanceRepository) CreateOrUpdate(ctx context.Context, balance *reposit
 		}
 	}
 
-	r.logger.Info("Balance created or updated",
+	r.logger.Debug("Balance created or updated",
 		logger.Int64("id", balance.ID),
 		logger.String("portfolioId", balance.PortfolioID))
 
@@ -222,7 +222,7 @@ func (r *BalanceRepository) Update(ctx context.Context, balance *repositories.Ba
 		return repositories.NewRepositoryError("scan", "balance", err)
 	}
 
-	r.logger.Info("Balance updated",
+	r.logger.Debug("Balance updated",
 		logger.Int64("id", balance.ID),
 		logger.Int("version", balance.Version))
 
@@ -253,7 +253,7 @@ func (r *BalanceRepository) UpdateQuantities(ctx context.Context, id int64, quan
 		return repositories.NewOptimisticLockError("balance", id, version, version+1)
 	}
 
-	r.logger.Info("Balance quantities updated",
+	r.logger.Debug("Balance quantities updated",
 		logger.Int64("id", id))
 
 	return nil
@@ -290,7 +290,7 @@ func (r *BalanceRepository) UpdateMultipleBalances(ctx context.Context, updates 
 			}
 		}
 
-		r.logger.Info("Multiple balances updated",
+		r.logger.Debug("Multiple balances updated",
 			logger.Int("count", len(updates)))
 
 		return nil

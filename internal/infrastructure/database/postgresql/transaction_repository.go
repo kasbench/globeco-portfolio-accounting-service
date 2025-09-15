@@ -54,7 +54,7 @@ func (r *TransactionRepository) Create(ctx context.Context, transaction *reposit
 		}
 	}
 
-	r.logger.Info("Transaction created",
+	r.logger.Debug("Transaction created",
 		logger.Int64("id", transaction.ID),
 		logger.String("sourceId", transaction.SourceID),
 		logger.String("portfolioId", transaction.PortfolioID))
@@ -93,7 +93,7 @@ func (r *TransactionRepository) CreateBatch(ctx context.Context, transactions []
 			}
 		}
 
-		r.logger.Info("Transaction batch created",
+		r.logger.Debug("Transaction batch created",
 			logger.Int("count", len(transactions)))
 
 		return nil
@@ -218,7 +218,7 @@ func (r *TransactionRepository) Update(ctx context.Context, transaction *reposit
 		return repositories.NewRepositoryError("scan", "transaction", err)
 	}
 
-	r.logger.Info("Transaction updated",
+	r.logger.Debug("Transaction updated",
 		logger.Int64("id", transaction.ID),
 		logger.Int("version", transaction.Version))
 
@@ -249,7 +249,7 @@ func (r *TransactionRepository) UpdateStatus(ctx context.Context, id int64, stat
 		return repositories.NewOptimisticLockError("transaction", id, version, version+1)
 	}
 
-	r.logger.Info("Transaction status updated",
+	r.logger.Debug("Transaction status updated",
 		logger.Int64("id", id),
 		logger.String("status", status))
 
@@ -279,7 +279,7 @@ func (r *TransactionRepository) IncrementReprocessingAttempts(ctx context.Contex
 		return repositories.NewOptimisticLockError("transaction", id, version, version+1)
 	}
 
-	r.logger.Info("Transaction reprocessing attempts incremented",
+	r.logger.Debug("Transaction reprocessing attempts incremented",
 		logger.Int64("id", id))
 
 	return nil
@@ -340,7 +340,7 @@ func (r *TransactionRepository) UpdateTransactionsStatus(ctx context.Context, id
 			return repositories.NewRepositoryError("update_status_batch", "transaction", err)
 		}
 
-		r.logger.Info("Transactions status updated",
+		r.logger.Debug("Transactions status updated",
 			logger.Int("count", len(ids)),
 			logger.String("status", status))
 

@@ -66,7 +66,7 @@ func runValidateCommand(ctx context.Context, flags *ValidateFlags) error {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	logger.Info("Starting transaction file validation",
+	logger.Debug("Starting transaction file validation",
 		zap.String("file", flags.File),
 		zap.Bool("strict", flags.Strict),
 	)
@@ -141,7 +141,7 @@ func NewFileValidator(cfg *config.Config, lg logger.Logger) *FileValidator {
 
 // ValidateFile validates a transaction file
 func (v *FileValidator) ValidateFile(ctx context.Context, filePath string, strict bool) (*ValidationResult, error) {
-	v.logger.Info("Starting file validation",
+	v.logger.Debug("Starting file validation",
 		zap.String("file", filePath),
 		zap.Bool("strict", strict),
 	)
@@ -169,7 +169,7 @@ func (v *FileValidator) ValidateFile(ctx context.Context, filePath string, stric
 	result.Valid = true
 	result.TotalRecords = 0
 
-	v.logger.Info("File validation completed",
+	v.logger.Debug("File validation completed",
 		zap.String("file", filePath),
 		zap.Bool("valid", result.Valid),
 		zap.Int("errors", len(result.Errors)),

@@ -56,7 +56,7 @@ func (h *BalanceHandler) GetBalances(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log the request
-	h.logger.Info("GET /api/v1/balances",
+	h.logger.Debug("GET /api/v1/balances",
 		zap.Any("filter", filter),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
@@ -78,7 +78,7 @@ func (h *BalanceHandler) GetBalances(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Successfully retrieved balances",
+	h.logger.Debug("Successfully retrieved balances",
 		zap.Int("count", len(result.Balances)),
 		zap.Int64("total", result.Pagination.Total),
 		zap.Int("page", result.Pagination.Page),
@@ -116,7 +116,7 @@ func (h *BalanceHandler) GetBalanceByID(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Log the request
-	h.logger.Info("GET /api/v1/balance/{id}",
+	h.logger.Debug("GET /api/v1/balance/{id}",
 		zap.Int64("id", id),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
@@ -144,7 +144,7 @@ func (h *BalanceHandler) GetBalanceByID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.logger.Info("Successfully retrieved balance", zap.Int64("id", id))
+	h.logger.Debug("Successfully retrieved balance", zap.Int64("id", id))
 }
 
 // GetPortfolioSummary retrieves a comprehensive portfolio summary
@@ -171,7 +171,7 @@ func (h *BalanceHandler) GetPortfolioSummary(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Log the request
-	h.logger.Info("GET /api/v1/portfolios/{portfolioId}/summary",
+	h.logger.Debug("GET /api/v1/portfolios/{portfolioId}/summary",
 		zap.String("portfolioId", portfolioID),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
@@ -199,7 +199,7 @@ func (h *BalanceHandler) GetPortfolioSummary(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.logger.Info("Successfully retrieved portfolio summary", zap.String("portfolioId", portfolioID))
+	h.logger.Debug("Successfully retrieved portfolio summary", zap.String("portfolioId", portfolioID))
 }
 
 // parseBalanceFilter parses query parameters into BalanceFilter

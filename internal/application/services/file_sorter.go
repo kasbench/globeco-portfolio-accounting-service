@@ -45,7 +45,7 @@ type SortedRecord struct {
 
 // SortTransactionFile sorts a CSV transaction file by portfolio_id, transaction_date, transaction_type
 func (s *FileSorter) SortTransactionFile(ctx context.Context, inputFile string, options SortingOptions) (string, error) {
-	s.logger.Info("Starting file sorting",
+	s.logger.Debug("Starting file sorting",
 		zap.String("input_file", inputFile),
 		zap.String("output_dir", options.OutputDir),
 		zap.Int("buffer_size", options.BufferSize))
@@ -89,7 +89,7 @@ func (s *FileSorter) SortTransactionFile(ctx context.Context, inputFile string, 
 
 // sortInMemory sorts smaller files entirely in memory
 func (s *FileSorter) sortInMemory(ctx context.Context, inputFile, outputPath string, options SortingOptions) (string, error) {
-	s.logger.Info("Using in-memory sorting", zap.String("input_file", inputFile))
+	s.logger.Debug("Using in-memory sorting", zap.String("input_file", inputFile))
 
 	// Open input file
 	inputFileHandle, err := os.Open(inputFile)
@@ -156,7 +156,7 @@ func (s *FileSorter) sortInMemory(ctx context.Context, inputFile, outputPath str
 	}
 
 	// Sort records
-	s.logger.Info("Sorting records in memory", zap.Int("record_count", len(records)))
+	s.logger.Debug("Sorting records in memory", zap.Int("record_count", len(records)))
 	sort.Slice(records, func(i, j int) bool {
 		return s.compareRecords(records[i], records[j])
 	})
@@ -167,7 +167,7 @@ func (s *FileSorter) sortInMemory(ctx context.Context, inputFile, outputPath str
 
 // sortWithExternalMerge sorts larger files using external merge sort
 func (s *FileSorter) sortWithExternalMerge(ctx context.Context, inputFile, outputPath string, options SortingOptions) (string, error) {
-	s.logger.Info("Using external merge sort", zap.String("input_file", inputFile))
+	s.logger.Debug("Using external merge sort", zap.String("input_file", inputFile))
 
 	// Create temporary directory for chunks
 	tempDir := filepath.Join(options.OutputDir, "temp_chunks")
@@ -250,7 +250,7 @@ func (s *FileSorter) createSortedChunks(ctx context.Context, inputFile, tempDir 
 		}
 	}
 
-	s.logger.Info("Created sorted chunks", zap.Int("chunk_count", len(chunkFiles)))
+	s.logger.Debug("Created sorted chunks", zap.Int("chunk_count", len(chunkFiles)))
 	return chunkFiles, header, nil
 }
 
@@ -290,7 +290,7 @@ func (s *FileSorter) readChunk(reader *csv.Reader, bufferSize int, headerMap map
 
 // mergeSortedChunks merges sorted chunk files into a single sorted file
 func (s *FileSorter) mergeSortedChunks(ctx context.Context, chunkFiles []string, outputPath string, header []string, keepHeader bool) (string, error) {
-	s.logger.Info("Merging sorted chunks", zap.Int("chunk_count", len(chunkFiles)))
+	s.logger.Debug("Merging sorted chunks", zap.Int("chunk_count", len(chunkFiles)))
 
 	// Open all chunk files
 	chunkReaders := make([]*csv.Reader, len(chunkFiles))
@@ -386,7 +386,7 @@ func (s *FileSorter) mergeSortedChunks(ctx context.Context, chunkFiles []string,
 		}
 	}
 
-	s.logger.Info("File sorting completed", zap.String("output_file", outputPath))
+	s.logger.Debug("File sorting completed", zap.String("output_file", outputPath))
 	return outputPath, nil
 }
 
@@ -490,7 +490,7 @@ func (s *FileSorter) writeSortedFile(outputPath string, header []string, records
 		}
 	}
 
-	s.logger.Info("Sorted file written successfully",
+	s.logger.Debug("Sorted file written successfully",
 		zap.String("output_file", outputPath),
 		zap.Int("record_count", len(records)))
 

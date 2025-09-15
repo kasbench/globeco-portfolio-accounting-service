@@ -60,13 +60,13 @@ type ErrorSummary struct {
 
 // GenerateErrorFile creates an error file from failed records
 func (e *ErrorHandler) GenerateErrorFile(ctx context.Context, originalFilename string, errorRecords []*ErrorRecord, originalHeaders []string, options ErrorFileOptions) (string, error) {
-	e.logger.Info("Generating error file",
+	e.logger.Debug("Generating error file",
 		zap.String("original_file", originalFilename),
 		zap.Int("error_count", len(errorRecords)),
 		zap.String("output_dir", options.OutputDir))
 
 	if len(errorRecords) == 0 {
-		e.logger.Info("No error records to write")
+		e.logger.Debug("No error records to write")
 		return "", nil
 	}
 
@@ -100,7 +100,7 @@ func (e *ErrorHandler) GenerateErrorFile(ctx context.Context, originalFilename s
 		return "", fmt.Errorf("failed to write error file: %w", err)
 	}
 
-	e.logger.Info("Error file generated successfully",
+	e.logger.Debug("Error file generated successfully",
 		zap.String("error_file", errorFilePath),
 		zap.Int("error_count", len(errorRecords)))
 
@@ -139,7 +139,7 @@ func (e *ErrorHandler) generateMultipleErrorFiles(ctx context.Context, originalF
 		fileCount++
 	}
 
-	e.logger.Info("Multiple error files generated",
+	e.logger.Debug("Multiple error files generated",
 		zap.Int("file_count", len(errorFiles)),
 		zap.Int("total_errors", len(errorRecords)))
 
@@ -293,7 +293,7 @@ func (e *ErrorHandler) GenerateErrorSummary(errorRecords []*ErrorRecord) *ErrorS
 // LogErrorSummary logs a summary of errors to the logger
 func (e *ErrorHandler) LogErrorSummary(summary *ErrorSummary, filename string) {
 	if summary.TotalErrors == 0 {
-		e.logger.Info("No errors encountered during processing", zap.String("filename", filename))
+		e.logger.Debug("No errors encountered during processing", zap.String("filename", filename))
 		return
 	}
 

@@ -331,7 +331,7 @@ func (s *balanceService) GetBalanceStats(ctx context.Context, filter dto.Balance
 
 // UpdateBalance updates a single balance
 func (s *balanceService) UpdateBalance(ctx context.Context, id int64, updateRequest dto.BalanceUpdateRequest) (*dto.BalanceUpdateResponse, error) {
-	s.logger.Info("Updating balance",
+	s.logger.Debug("Updating balance",
 		logger.Int64("balanceId", id))
 
 	// Validate update request
@@ -380,7 +380,7 @@ func (s *balanceService) UpdateBalance(ctx context.Context, id int64, updateRequ
 		return nil, fmt.Errorf("failed to update balance: %w", err)
 	}
 
-	s.logger.Info("Balance updated successfully",
+	s.logger.Debug("Balance updated successfully",
 		logger.Int64("balanceId", id))
 
 	updatedBalance := s.convertRepoToDomain(currentRepoBalance)
@@ -393,7 +393,7 @@ func (s *balanceService) UpdateBalance(ctx context.Context, id int64, updateRequ
 
 // BulkUpdateBalances updates multiple balances
 func (s *balanceService) BulkUpdateBalances(ctx context.Context, bulkRequest dto.BulkBalanceUpdateRequest) (*dto.BulkBalanceUpdateResponse, error) {
-	s.logger.Info("Bulk updating balances",
+	s.logger.Debug("Bulk updating balances",
 		logger.Int("count", len(bulkRequest.Updates)))
 
 	// Validate bulk request
@@ -432,7 +432,7 @@ func (s *balanceService) BulkUpdateBalances(ctx context.Context, bulkRequest dto
 		}
 	}
 
-	s.logger.Info("Bulk balance update completed",
+	s.logger.Debug("Bulk balance update completed",
 		logger.Int("successful", len(successful)),
 		logger.Int("failed", len(failed)))
 

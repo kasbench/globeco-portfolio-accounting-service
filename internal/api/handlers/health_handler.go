@@ -47,7 +47,7 @@ func NewHealthHandler(
 // @Failure 503 {object} dto.ErrorResponse "Service is unhealthy"
 // @Router /health [get]
 func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
-	h.logger.Info("GET /health",
+	h.logger.Debug("GET /health",
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
 
@@ -68,7 +68,7 @@ func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Health check successful")
+	h.logger.Debug("Health check successful")
 }
 
 // GetLiveness handles GET /health/live - Kubernetes liveness probe
@@ -206,7 +206,7 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	h.logger.Info("GET /health/detailed",
+	h.logger.Debug("GET /health/detailed",
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
 
@@ -288,7 +288,7 @@ func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request
 	}
 
 	if allHealthy {
-		h.logger.Info("Detailed health check successful")
+		h.logger.Debug("Detailed health check successful")
 	} else {
 		h.logger.Warn("Detailed health check shows degraded status", zap.Any("checks", checks))
 	}

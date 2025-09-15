@@ -138,7 +138,7 @@ func NewFileProcessorService(
 
 // ProcessTransactionFile processes a CSV transaction file
 func (s *fileProcessorService) ProcessTransactionFile(ctx context.Context, filename string) (*dto.FileProcessingStatus, error) {
-	s.logger.Info("Starting file processing",
+	s.logger.Debug("Starting file processing",
 		logger.String("filename", filename))
 
 	// Initialize processing status
@@ -176,7 +176,7 @@ func (s *fileProcessorService) ProcessTransactionFile(ctx context.Context, filen
 	}
 
 	status.TotalRecords = len(records)
-	s.logger.Info("File read successfully",
+	s.logger.Debug("File read successfully",
 		logger.String("filename", filename),
 		logger.Int("totalRecords", len(records)))
 
@@ -204,7 +204,7 @@ func (s *fileProcessorService) ProcessTransactionFile(ctx context.Context, filen
 	status.Status = "COMPLETED"
 	status.CompletedAt = timePtr(time.Now())
 
-	s.logger.Info("File processing completed",
+	s.logger.Debug("File processing completed",
 		logger.String("filename", filename),
 		logger.Int("totalRecords", status.TotalRecords),
 		logger.Int("processedRecords", status.ProcessedRecords),
@@ -471,7 +471,7 @@ func (s *fileProcessorService) createErrorFile(originalFilename string, errorRec
 		}
 	}
 
-	s.logger.Info("Error file created",
+	s.logger.Debug("Error file created",
 		logger.String("errorFilename", errorFilename),
 		logger.Int("errorCount", len(errorRecords)))
 
@@ -519,7 +519,7 @@ func (s *fileProcessorService) ListFileProcessingStatus(ctx context.Context, fil
 
 // ValidateTransactionFile validates a transaction file without processing
 func (s *fileProcessorService) ValidateTransactionFile(ctx context.Context, filename string) (*FileValidationResult, error) {
-	s.logger.Info("Validating transaction file",
+	s.logger.Debug("Validating transaction file",
 		logger.String("filename", filename))
 
 	fullPath := filepath.Join(s.config.WorkingDirectory, filename)
@@ -586,7 +586,7 @@ func (s *fileProcessorService) ValidateTransactionFile(ctx context.Context, file
 		}
 	}
 
-	s.logger.Info("File validation completed",
+	s.logger.Debug("File validation completed",
 		logger.String("filename", filename),
 		logger.Bool("isValid", result.IsValid),
 		logger.Int("errorCount", len(result.Errors)))

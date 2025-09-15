@@ -75,7 +75,7 @@ func (p *TransactionProcessor) ProcessTransaction(ctx context.Context, transacti
 		Success:       false,
 	}
 
-	p.logger.Info("Starting transaction processing",
+	p.logger.Debug("Starting transaction processing",
 		logger.Int64("transactionId", transaction.ID()),
 		logger.String("sourceId", transaction.SourceID().String()),
 		logger.String("type", transaction.TransactionType().String()))
@@ -154,7 +154,7 @@ func (p *TransactionProcessor) ProcessTransaction(ctx context.Context, transacti
 	result.BalanceChanges = balanceResult
 	result.ProcessingTime = time.Since(startTime)
 
-	p.logger.Info("Transaction processed successfully",
+	p.logger.Debug("Transaction processed successfully",
 		logger.Int64("transactionId", transaction.ID()),
 		logger.String("duration", result.ProcessingTime.String()))
 
@@ -176,7 +176,7 @@ func (p *TransactionProcessor) ProcessTransactionBatch(ctx context.Context, tran
 		},
 	}
 
-	p.logger.Info("Starting batch processing",
+	p.logger.Debug("Starting batch processing",
 		logger.Int("transactionCount", len(transactions)))
 
 	// Process each transaction
@@ -205,7 +205,7 @@ func (p *TransactionProcessor) ProcessTransactionBatch(ctx context.Context, tran
 
 	result.ProcessingTime = time.Since(startTime)
 
-	p.logger.Info("Batch processing completed",
+	p.logger.Debug("Batch processing completed",
 		logger.Int("total", result.TotalTransactions),
 		logger.Int("successful", result.SuccessfulProcessed),
 		logger.Int("failed", result.Failed),
@@ -228,11 +228,11 @@ func (p *TransactionProcessor) ReprocessFailedTransactions(ctx context.Context, 
 	}
 
 	if len(transactions) == 0 {
-		p.logger.Info("No failed transactions to reprocess")
+		p.logger.Debug("No failed transactions to reprocess")
 		return &BatchProcessingResult{}, nil
 	}
 
-	p.logger.Info("Reprocessing failed transactions",
+	p.logger.Debug("Reprocessing failed transactions",
 		logger.Int("count", len(transactions)))
 
 	// Convert repository transactions to domain transactions

@@ -168,7 +168,7 @@ func (m *EnhancedMetricsMiddleware) initializeMetrics() error {
 		return combinedError
 	}
 
-	m.logger.Info("All enhanced metrics initialized successfully",
+	m.logger.Debug("All enhanced metrics initialized successfully",
 		zap.String("counter", "http_requests_total_enhanced"),
 		zap.String("histogram", "http_request_duration_milliseconds"),
 		zap.String("gauge", "http_requests_in_flight_enhanced"))
@@ -314,7 +314,7 @@ func (w *enhancedMetricsResponseWriter) Write(b []byte) (int, error) {
 func (m *EnhancedMetricsMiddleware) extractPathPatternSafely(path string) string {
 	// Validate path length to prevent cardinality explosion
 	if len(path) > m.maxPathLength {
-		m.logMetricError("Path too long, truncating for metrics", "path_length_limit", 
+		m.logMetricError("Path too long, truncating for metrics", "path_length_limit",
 			fmt.Errorf("path length %d exceeds limit %d", len(path), m.maxPathLength))
 		return "/path_too_long"
 	}
@@ -355,21 +355,21 @@ func (m *EnhancedMetricsMiddleware) extractPathPatternSafely(path string) string
 func (m *EnhancedMetricsMiddleware) normalizePathPattern(path string) string {
 	// Static path mappings for exact matches
 	staticPaths := map[string]string{
-		"/health":                     "/health",
-		"/health/live":                "/health/live",
-		"/health/ready":               "/health/ready",
-		"/health/detailed":            "/health/detailed",
-		"/metrics":                    "/metrics",
-		"/api":                        "/api",
-		"/swagger":                    "/swagger",
-		"/openapi.json":               "/openapi.json",
-		"/docs":                       "/docs",
-		"/api/v1/health":              "/api/v1/health",
-		"/api/v1/health/live":         "/api/v1/health/live",
-		"/api/v1/health/ready":        "/api/v1/health/ready",
-		"/api/v1/health/detailed":     "/api/v1/health/detailed",
-		"/api/v1/transactions":        "/api/v1/transactions",
-		"/api/v1/balances":            "/api/v1/balances",
+		"/health":                 "/health",
+		"/health/live":            "/health/live",
+		"/health/ready":           "/health/ready",
+		"/health/detailed":        "/health/detailed",
+		"/metrics":                "/metrics",
+		"/api":                    "/api",
+		"/swagger":                "/swagger",
+		"/openapi.json":           "/openapi.json",
+		"/docs":                   "/docs",
+		"/api/v1/health":          "/api/v1/health",
+		"/api/v1/health/live":     "/api/v1/health/live",
+		"/api/v1/health/ready":    "/api/v1/health/ready",
+		"/api/v1/health/detailed": "/api/v1/health/detailed",
+		"/api/v1/transactions":    "/api/v1/transactions",
+		"/api/v1/balances":        "/api/v1/balances",
 	}
 
 	// Check for exact static matches first
@@ -428,7 +428,7 @@ func (m *EnhancedMetricsMiddleware) normalizePathPattern(path string) string {
 func (m *EnhancedMetricsMiddleware) recordMetricSafely(recordFunc func() error, metricName string) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			m.logMetricError("Panic recovered during metric recording", metricName, 
+			m.logMetricError("Panic recovered during metric recording", metricName,
 				fmt.Errorf("panic: %v", recovered))
 		}
 	}()

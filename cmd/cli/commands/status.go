@@ -91,7 +91,7 @@ func runStatusCommand(ctx context.Context, flags *StatusFlags) error {
 		}
 	}
 
-	logger.Info("Checking service status",
+	logger.Debug("Checking service status",
 		zap.String("url", serviceURL),
 		zap.Duration("timeout", flags.Timeout),
 		zap.Bool("verbose", flags.Verbose),
@@ -192,7 +192,7 @@ func NewStatusChecker(cfg *config.Config, lg logger.Logger, timeout time.Duratio
 
 // CheckStatus checks the service status
 func (s *StatusChecker) CheckStatus(ctx context.Context, serviceURL string, verbose bool) (*ServiceStatus, error) {
-	s.logger.Info("Starting service status check",
+	s.logger.Debug("Starting service status check",
 		zap.String("url", serviceURL),
 		zap.Bool("verbose", verbose),
 	)
@@ -248,7 +248,7 @@ func (s *StatusChecker) CheckStatus(ctx context.Context, serviceURL string, verb
 		}
 	}
 
-	s.logger.Info("Service status check completed",
+	s.logger.Debug("Service status check completed",
 		zap.String("url", serviceURL),
 		zap.Bool("healthy", status.Healthy),
 		zap.Bool("reachable", status.Reachable),

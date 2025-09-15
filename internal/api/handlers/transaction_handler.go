@@ -59,7 +59,7 @@ func (h *TransactionHandler) GetTransactions(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Log the request
-	h.logger.Info("GET /api/v1/transactions",
+	h.logger.Debug("GET /api/v1/transactions",
 		zap.Any("filter", filter),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
@@ -81,7 +81,7 @@ func (h *TransactionHandler) GetTransactions(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.logger.Info("Successfully retrieved transactions",
+	h.logger.Debug("Successfully retrieved transactions",
 		zap.Int("count", len(result.Transactions)),
 		zap.Int64("total", result.Pagination.Total),
 		zap.Int("page", result.Pagination.Page),
@@ -119,7 +119,7 @@ func (h *TransactionHandler) GetTransactionByID(w http.ResponseWriter, r *http.R
 	}
 
 	// Log the request
-	h.logger.Info("GET /api/v1/transaction/{id}",
+	h.logger.Debug("GET /api/v1/transaction/{id}",
 		zap.Int64("id", id),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
 		zap.String("remote_addr", r.RemoteAddr))
@@ -146,7 +146,7 @@ func (h *TransactionHandler) GetTransactionByID(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	h.logger.Info("Successfully retrieved transaction", zap.Int64("id", id))
+	h.logger.Debug("Successfully retrieved transaction", zap.Int64("id", id))
 }
 
 // CreateTransactions processes a batch of transactions
@@ -167,7 +167,7 @@ func (h *TransactionHandler) CreateTransactions(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 
 	// Log the request
-	h.logger.Info("POST /api/v1/transactions",
+	h.logger.Debug("POST /api/v1/transactions",
 		zap.String("content_type", r.Header.Get("Content-Type")),
 		zap.Int64("content_length", r.ContentLength),
 		zap.String("user_agent", r.Header.Get("User-Agent")),
@@ -215,7 +215,7 @@ func (h *TransactionHandler) CreateTransactions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	h.logger.Info("Successfully processed transaction batch",
+	h.logger.Debug("Successfully processed transaction batch",
 		zap.Int("input_count", len(transactions)),
 		zap.Int("success_count", result.Summary.Successful),
 		zap.Int("error_count", result.Summary.Failed),

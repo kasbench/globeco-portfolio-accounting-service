@@ -101,7 +101,7 @@ func runProcessCommand(ctx context.Context, flags *ProcessFlags) error {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	logger.Info("Starting transaction file processing",
+	logger.Debug("Starting transaction file processing",
 		zap.String("file", flags.File),
 		zap.String("output_dir", flags.OutputDir),
 		zap.Int("batch_size", flags.BatchSize),
@@ -178,7 +178,7 @@ func NewFileProcessor(cfg *config.Config, lg logger.Logger) *FileProcessor {
 func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, options ProcessingOptions) (*ProcessingResult, error) {
 	start := time.Now()
 
-	p.logger.Info("Starting file processing",
+	p.logger.Debug("Starting file processing",
 		zap.String("file", filePath),
 		zap.Any("options", options),
 	)
@@ -194,7 +194,7 @@ func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, option
 	}
 
 	// Step 1: Validate file format
-	p.logger.Info("Validating file format")
+	p.logger.Debug("Validating file format")
 	if err := p.validateFileFormat(filePath); err != nil {
 		return nil, fmt.Errorf("file format validation failed: %w", err)
 	}
@@ -202,7 +202,7 @@ func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, option
 	// Step 2: Sort file (if not skipped)
 	sortedFile := filePath
 	if !options.SkipSort {
-		p.logger.Info("Sorting file by portfolio_id, transaction_date, transaction_type")
+		p.logger.Debug("Sorting file by portfolio_id, transaction_date, transaction_type")
 		var err error
 		sortedFile, err = p.sortFile(filePath, options.OutputDir)
 		if err != nil {
@@ -212,7 +212,7 @@ func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, option
 	}
 
 	// Step 3: Process file in batches
-	p.logger.Info("Processing transactions in batches")
+	p.logger.Debug("Processing transactions in batches")
 	result, err := p.processBatches(ctx, sortedFile, options)
 	if err != nil {
 		return nil, fmt.Errorf("batch processing failed: %w", err)
@@ -222,7 +222,7 @@ func (p *FileProcessor) ProcessFile(ctx context.Context, filePath string, option
 	result.InputFile = filePath
 	result.Duration = time.Since(start)
 
-	p.logger.Info("File processing completed",
+	p.logger.Debug("File processing completed",
 		zap.String("file", filePath),
 		zap.Duration("duration", result.Duration),
 		zap.Int("total_records", result.TotalRecords),

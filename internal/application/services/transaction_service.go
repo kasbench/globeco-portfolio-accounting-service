@@ -85,7 +85,7 @@ func NewTransactionService(
 
 // CreateTransaction creates a single transaction
 func (s *transactionService) CreateTransaction(ctx context.Context, transactionDTO dto.TransactionPostDTO) (*dto.TransactionResponseDTO, error) {
-	s.logger.Info("Creating single transaction",
+	s.logger.Debug("Creating single transaction",
 		logger.String("sourceId", transactionDTO.SourceID))
 
 	// Validate DTO
@@ -127,7 +127,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, transactionD
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	s.logger.Info("Transaction created successfully",
+	s.logger.Debug("Transaction created successfully",
 		logger.Int64("transactionId", repoTransaction.ID),
 		logger.String("sourceId", transactionDTO.SourceID))
 
@@ -167,7 +167,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, transactionD
 	// Use the updated transaction with PROC status
 	processedDomainTransaction := s.convertRepoToDomain(updatedRepoTransaction)
 
-	s.logger.Info("Transaction created and processed successfully",
+	s.logger.Debug("Transaction created and processed successfully",
 		logger.Int64("transactionId", repoTransaction.ID),
 		logger.String("sourceId", transactionDTO.SourceID),
 		logger.String("status", "PROC"))
@@ -177,7 +177,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, transactionD
 
 // CreateTransactions creates multiple transactions in a batch
 func (s *transactionService) CreateTransactions(ctx context.Context, transactionDTOs []dto.TransactionPostDTO) (*dto.TransactionBatchResponse, error) {
-	s.logger.Info("Creating batch of transactions",
+	s.logger.Debug("Creating batch of transactions",
 		logger.Int("count", len(transactionDTOs)))
 
 	if len(transactionDTOs) == 0 {
@@ -312,13 +312,13 @@ func (s *transactionService) CreateTransactions(ctx context.Context, transaction
 			successful = append(successful, s.convertRepoToDomain(updatedRepoTransaction))
 		}
 
-		s.logger.Info("Transaction created and processed successfully",
+		s.logger.Debug("Transaction created and processed successfully",
 			logger.Int64("transactionId", repoTransaction.ID),
 			logger.String("sourceId", transactionDTO.SourceID),
 			logger.String("status", "PROC"))
 	}
 
-	s.logger.Info("Batch transaction creation and processing completed",
+	s.logger.Debug("Batch transaction creation and processing completed",
 		logger.Int("successful", len(successful)),
 		logger.Int("failed", len(failed)),
 		logger.Int("total", len(transactionDTOs)))
@@ -409,7 +409,7 @@ func (s *transactionService) GetTransactions(ctx context.Context, filter dto.Tra
 
 // ProcessTransaction processes a single transaction
 func (s *transactionService) ProcessTransaction(ctx context.Context, id int64) (*dto.TransactionProcessingResult, error) {
-	s.logger.Info("Processing transaction",
+	s.logger.Debug("Processing transaction",
 		logger.Int64("transactionId", id))
 
 	// Get transaction from repository
@@ -467,7 +467,7 @@ func (s *transactionService) ProcessTransaction(ctx context.Context, id int64) (
 		}, nil
 	}
 
-	s.logger.Info("Transaction processed successfully",
+	s.logger.Debug("Transaction processed successfully",
 		logger.Int64("transactionId", id))
 
 	return &dto.TransactionProcessingResult{
@@ -481,7 +481,7 @@ func (s *transactionService) ProcessTransaction(ctx context.Context, id int64) (
 
 // ReprocessFailedTransactions reprocesses failed transactions
 func (s *transactionService) ReprocessFailedTransactions(ctx context.Context, filter dto.TransactionFilter) (*dto.TransactionBatchResponse, error) {
-	s.logger.Info("Reprocessing failed transactions")
+	s.logger.Debug("Reprocessing failed transactions")
 
 	// Create filter for failed transactions
 	repoFilter := repositories.TransactionFilter{
@@ -541,7 +541,7 @@ func (s *transactionService) ReprocessFailedTransactions(ctx context.Context, fi
 		}
 	}
 
-	s.logger.Info("Reprocessing completed",
+	s.logger.Debug("Reprocessing completed",
 		logger.Int("successful", len(successful)),
 		logger.Int("failed", len(failed)))
 

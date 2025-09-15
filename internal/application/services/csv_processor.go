@@ -66,7 +66,7 @@ type CSVHeader struct {
 
 // ValidateHeaders validates that the CSV file has the correct headers
 func (p *CSVProcessor) ValidateHeaders(filePath string) (*CSVHeader, error) {
-	p.logger.Info("Validating CSV headers", zap.String("file", filePath))
+	p.logger.Debug("Validating CSV headers", zap.String("file", filePath))
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -128,7 +128,7 @@ func (p *CSVProcessor) ValidateHeaders(filePath string) (*CSVHeader, error) {
 		}
 	}
 
-	p.logger.Info("CSV headers validated successfully",
+	p.logger.Debug("CSV headers validated successfully",
 		zap.String("file", filePath),
 		zap.Any("header_mapping", headerMap))
 
@@ -137,7 +137,7 @@ func (p *CSVProcessor) ValidateHeaders(filePath string) (*CSVHeader, error) {
 
 // ReadCSVFile reads and parses a CSV file, returning records and progress tracking
 func (p *CSVProcessor) ReadCSVFile(ctx context.Context, filePath string, progressCallback func(*ProcessingProgress)) ([]*CSVTransactionRecord, error) {
-	p.logger.Info("Starting CSV file reading", zap.String("file", filePath))
+	p.logger.Debug("Starting CSV file reading", zap.String("file", filePath))
 
 	// First, validate headers
 	headerMap, err := p.ValidateHeaders(filePath)
@@ -225,7 +225,7 @@ func (p *CSVProcessor) ReadCSVFile(ctx context.Context, filePath string, progres
 		lineNumber++
 	}
 
-	p.logger.Info("CSV file reading completed",
+	p.logger.Debug("CSV file reading completed",
 		zap.String("file", filePath),
 		zap.Int("total_records", len(records)),
 		zap.Int("valid_records", progress.ValidRecords),
