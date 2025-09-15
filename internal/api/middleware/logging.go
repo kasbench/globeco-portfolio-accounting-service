@@ -49,7 +49,7 @@ func (m *LoggingMiddleware) Handler() func(http.Handler) http.Handler {
 			}
 
 			// Log request
-			m.logger.Info("HTTP Request",
+			m.logger.Debug("HTTP Request",
 				zap.String("correlation_id", correlationID),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
@@ -89,7 +89,7 @@ func (m *LoggingMiddleware) Handler() func(http.Handler) http.Handler {
 					zap.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
 				)
 			} else {
-				m.logger.Info("HTTP Response",
+				m.logger.Debug("HTTP Response",
 					zap.String("correlation_id", correlationID),
 					zap.String("method", r.Method),
 					zap.String("path", r.URL.Path),

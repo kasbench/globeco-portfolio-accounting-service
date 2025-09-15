@@ -74,7 +74,7 @@ func NewPortfolioClient(cfg PortfolioServiceConfig, httpClient *http.Client, log
 		logger:         logger,
 	}
 
-	logger.Info("Portfolio client initialized",
+	logger.Debug("Portfolio client initialized",
 		logutil.String("baseURL", cfg.BaseURL),
 		logutil.Duration("timeout", cfg.Timeout),
 	)
@@ -171,7 +171,7 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 
 	// Log request if enabled
 	if c.config.EnableLogging {
-		c.logger.Info("Making HTTP request",
+		c.logger.Debug("Making HTTP request",
 			logutil.String("method", method),
 			logutil.String("url", url),
 			logutil.String("operation", operation))
@@ -195,7 +195,7 @@ func (c *portfolioClient) doHTTPRequest(ctx context.Context, method, url string,
 
 	// Log response if enabled
 	if c.config.EnableLogging {
-		c.logger.Info("HTTP response received",
+		c.logger.Debug("HTTP response received",
 			logutil.String("method", method),
 			logutil.String("url", url),
 			logutil.String("operation", operation),
@@ -246,7 +246,7 @@ func (c *portfolioClient) Close() error {
 		transport.CloseIdleConnections()
 	}
 
-	c.logger.Info("Portfolio client closed")
+	c.logger.Debug("Portfolio client closed")
 	return nil
 }
 

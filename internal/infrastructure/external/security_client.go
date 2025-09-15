@@ -80,7 +80,7 @@ func NewSecurityClient(cfg SecurityServiceConfig, httpClient *http.Client, logge
 		logger:         logger,
 	}
 
-	logger.Info("Security client initialized",
+	logger.Debug("Security client initialized",
 		logutil.String("baseURL", cfg.BaseURL),
 		logutil.Duration("timeout", cfg.Timeout),
 	)
@@ -203,7 +203,7 @@ func (c *securityClient) doHTTPRequest(ctx context.Context, method, url string, 
 
 	// Log request if enabled
 	if c.config.EnableLogging {
-		c.logger.Info("Making HTTP request",
+		c.logger.Debug("Making HTTP request",
 			logger.String("method", method),
 			logger.String("url", url),
 			logger.String("operation", operation))
@@ -227,7 +227,7 @@ func (c *securityClient) doHTTPRequest(ctx context.Context, method, url string, 
 
 	// Log response if enabled
 	if c.config.EnableLogging {
-		c.logger.Info("HTTP response received",
+		c.logger.Debug("HTTP response received",
 			logger.String("method", method),
 			logger.String("url", url),
 			logger.String("operation", operation),
@@ -278,7 +278,7 @@ func (c *securityClient) Close() error {
 		transport.CloseIdleConnections()
 	}
 
-	c.logger.Info("Security client closed")
+	c.logger.Debug("Security client closed")
 	return nil
 }
 
