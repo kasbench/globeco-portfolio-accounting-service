@@ -61,7 +61,7 @@ spec:
               mountPath: /mnt/postgres-data
       containers:
         - name: globeco-portfolio-accounting-service-postgresql
-          image: postgres:latest
+          image: postgres:18.0
           imagePullPolicy: Always
           ports:
             - containerPort: 5432
