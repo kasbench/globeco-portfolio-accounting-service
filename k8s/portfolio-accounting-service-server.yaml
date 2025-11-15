@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: globeco-portfolio-accounting-service
-          image: kasbench/globeco-portfolio-accounting-service-server:1.0.1
+          image: kasbench/globeco-portfolio-accounting-service-server:1.0.2
           imagePullPolicy: Always
           ports:
             - containerPort: 8087

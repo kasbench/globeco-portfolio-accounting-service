@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -104,8 +105,25 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 	setupDocumentationRoutes(r, deps.SwaggerHandler)
 	setupMetricsRoute(r, config.EnableMetrics)
 
-	// Wrap router with OTel HTTP handler for tracing
-	return otelhttp.NewHandler(r, config.ServiceName)
+	// otelFilter excludes health, metrics, and documentation endpoints from tracing
+	otelFilter := func(r *http.Request) bool {
+		path := r.URL.Path
+		switch {
+		case strings.HasPrefix(path, "/health"),
+			strings.HasPrefix(path, "/api/v1/health"),
+			strings.HasPrefix(path, "/metrics"),
+			strings.HasPrefix(path, "/swagger"),
+			path == "/openapi.json",
+			path == "/docs",
+			path == "/api":
+			return false
+		default:
+			return true
+		}
+	}
+
+	// Wrap router with OTel HTTP handler for tracing, using the filter
+	return otelhttp.NewHandler(r, config.ServiceName, otelhttp.WithFilter(otelFilter))
 }
 
 // setupHealthRoutes configures health check endpoints
