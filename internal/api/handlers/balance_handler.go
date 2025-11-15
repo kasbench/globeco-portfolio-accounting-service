@@ -71,10 +71,10 @@ func (h *BalanceHandler) GetBalances(w http.ResponseWriter, r *http.Request) {
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -137,10 +137,10 @@ func (h *BalanceHandler) GetBalanceByID(w http.ResponseWriter, r *http.Request) 
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(balance); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -192,10 +192,10 @@ func (h *BalanceHandler) GetPortfolioSummary(w http.ResponseWriter, r *http.Requ
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(summary); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -312,7 +312,9 @@ func (h *BalanceHandler) writeErrorResponse(w http.ResponseWriter, statusCode in
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
 
 	if err := json.NewEncoder(w).Encode(errorResp); err != nil {
 		h.logger.Error("Failed to write error response", zap.Error(err))

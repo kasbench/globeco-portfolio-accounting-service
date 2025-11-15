@@ -181,16 +181,23 @@ type metricsResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
 	size       int64
+	written    bool
 }
 
 // WriteHeader captures the status code
 func (mrw *metricsResponseWriter) WriteHeader(code int) {
-	mrw.statusCode = code
-	mrw.ResponseWriter.WriteHeader(code)
+	if !mrw.written {
+		mrw.statusCode = code
+		mrw.written = true
+		mrw.ResponseWriter.WriteHeader(code)
+	}
 }
 
 // Write captures the response size and writes the data
 func (mrw *metricsResponseWriter) Write(b []byte) (int, error) {
+	if !mrw.written {
+		mrw.WriteHeader(http.StatusOK)
+	}
 	n, err := mrw.ResponseWriter.Write(b)
 	mrw.size += int64(n)
 	return n, err

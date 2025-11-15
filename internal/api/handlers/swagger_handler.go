@@ -56,7 +56,6 @@ func (h *SwaggerHandler) GetAPIInfo(w http.ResponseWriter, r *http.Request) {
 	h.logger.Debug("Serving API info")
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	apiInfo := `{
 		"name": "GlobeCo Portfolio Accounting Service API",

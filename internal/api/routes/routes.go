@@ -159,8 +159,7 @@ func setupAPIRoutes(r chi.Router, deps RouterDependencies) {
 		// Future API version endpoints can be added here
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotImplemented)
-			_, _ = w.Write([]byte(`{"message": "API v2 not implemented yet"}`))
+			http.Error(w, `{"message": "API v2 not implemented yet"}`, http.StatusNotImplemented)
 		})
 	})
 }

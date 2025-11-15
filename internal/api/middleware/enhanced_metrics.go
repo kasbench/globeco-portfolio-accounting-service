@@ -298,8 +298,8 @@ func (w *enhancedMetricsResponseWriter) WriteHeader(code int) {
 	if !w.written {
 		w.statusCode = code
 		w.written = true
+		w.ResponseWriter.WriteHeader(code)
 	}
-	w.ResponseWriter.WriteHeader(code)
 }
 
 // Write ensures WriteHeader is called with default status if not already called

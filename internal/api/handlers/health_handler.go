@@ -61,10 +61,10 @@ func (h *HealthHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Failed to encode health response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -92,10 +92,10 @@ func (h *HealthHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Failed to encode liveness response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 }
@@ -180,10 +180,15 @@ func (h *HealthHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Failed to encode readiness response", zap.Error(err))
+		if statusCode == http.StatusOK {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -280,10 +285,15 @@ func (h *HealthHandler) GetDetailedHealth(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("Failed to encode detailed health response", zap.Error(err))
+		if statusCode == http.StatusOK {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
