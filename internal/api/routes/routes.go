@@ -42,41 +42,10 @@ type RouterDependencies struct {
 func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 	r := chi.NewRouter()
 
-	// Create middleware instances
-	loggingMiddleware := apiMiddleware.NewLoggingMiddleware(deps.Logger)
-
-	var metricsMiddleware *apiMiddleware.MetricsMiddleware
-	if deps.MetricsRegistry != nil {
-		// Use custom registry (for tests)
-		metricsMiddleware = apiMiddleware.NewMetricsMiddlewareWithRegistry(config.ServiceName, deps.MetricsRegistry)
-	} else {
-		// Use default global registry (for production)
-		metricsMiddleware = apiMiddleware.NewMetricsMiddleware(config.ServiceName)
-	}
-
-	// Create enhanced metrics middleware
-	var enhancedMetricsMiddleware *apiMiddleware.EnhancedMetricsMiddleware
-	if config.EnableEnhancedMetrics {
-		enhancedMetricsConfig := apiMiddleware.EnhancedMetricsConfig{
-			ServiceName:           config.ServiceName,
-			Enabled:               true,
-			MaxPathPatternCache:   config.EnhancedMetricsConfig.MaxPathPatternCache,
-			MaxPathLength:         config.EnhancedMetricsConfig.MaxPathLength,
-			EnableFailsafeLogging: config.EnhancedMetricsConfig.EnableFailsafeLogging,
-		}
-		enhancedMetricsMiddleware = apiMiddleware.NewEnhancedMetricsMiddleware(enhancedMetricsConfig)
-	}
-
 	// Global middleware stack
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-
-	// Add enhanced metrics middleware after recovery but before other middleware
-	// This ensures it captures all requests including errors
-	if config.EnableEnhancedMetrics && enhancedMetricsMiddleware != nil {
-		r.Use(enhancedMetricsMiddleware.Handler())
-	}
 
 	r.Use(apiMiddleware.RequestIDMiddleware())
 	r.Use(apiMiddleware.CorrelationIDMiddleware())
@@ -90,20 +59,13 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 		}
 	}
 
-	// Add metrics middleware if enabled
-	if config.EnableMetrics {
-		r.Use(metricsMiddleware.Handler(config.ServiceName))
-		metricsMiddleware.RegisterMetrics()
-	}
+	// Add debug middleware to trace WriteHeader calls
+	// TODO: Remove this after debugging superfluous WriteHeader issue
+	// r.Use(apiMiddleware.DebugWriteHeaderMiddleware())
 
 	// Add logging middleware
+	loggingMiddleware := apiMiddleware.NewLoggingMiddleware(deps.Logger)
 	r.Use(loggingMiddleware.Handler())
-
-	// Setup routes
-	setupHealthRoutes(r, deps.HealthHandler)
-	setupAPIRoutes(r, deps)
-	setupDocumentationRoutes(r, deps.SwaggerHandler)
-	setupMetricsRoute(r, config.EnableMetrics)
 
 	// otelFilter excludes health, metrics, and documentation endpoints from tracing
 	otelFilter := func(r *http.Request) bool {
@@ -122,8 +84,20 @@ func SetupRouter(config Config, deps RouterDependencies) http.Handler {
 		}
 	}
 
-	// Wrap router with OTel HTTP handler for tracing, using the filter
-	return otelhttp.NewHandler(r, config.ServiceName, otelhttp.WithFilter(otelFilter))
+	// Add OTel middleware as part of the chain (not wrapping the entire router)
+	// This prevents duplicate WriteHeader calls
+	r.Use(func(next http.Handler) http.Handler {
+		return otelhttp.NewHandler(next, config.ServiceName, otelhttp.WithFilter(otelFilter))
+	})
+
+	// Setup routes
+	setupHealthRoutes(r, deps.HealthHandler)
+	setupAPIRoutes(r, deps)
+	setupDocumentationRoutes(r, deps.SwaggerHandler)
+	setupMetricsRoute(r, config.EnableMetrics)
+
+	// Return the router directly (not wrapped)
+	return r
 }
 
 // setupHealthRoutes configures health check endpoints

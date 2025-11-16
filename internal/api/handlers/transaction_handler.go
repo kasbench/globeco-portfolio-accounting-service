@@ -74,6 +74,7 @@ func (h *TransactionHandler) GetTransactions(w http.ResponseWriter, r *http.Requ
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
@@ -139,6 +140,7 @@ func (h *TransactionHandler) GetTransactionByID(w http.ResponseWriter, r *http.R
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(transaction); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
@@ -208,9 +210,7 @@ func (h *TransactionHandler) CreateTransactions(w http.ResponseWriter, r *http.R
 
 	// Write successful response
 	w.Header().Set("Content-Type", "application/json")
-	if status != http.StatusOK {
-		w.WriteHeader(status)
-	}
+	w.WriteHeader(status)
 
 	if err := json.NewEncoder(w).Encode(result); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
@@ -340,9 +340,7 @@ func (h *TransactionHandler) writeErrorResponse(w http.ResponseWriter, statusCod
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if statusCode != http.StatusOK {
-		w.WriteHeader(statusCode)
-	}
+	w.WriteHeader(statusCode)
 
 	if err := json.NewEncoder(w).Encode(errorResp); err != nil {
 		h.logger.Error("Failed to write error response", zap.Error(err))

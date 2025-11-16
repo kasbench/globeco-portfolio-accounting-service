@@ -26,6 +26,8 @@ spec:
               value: "true"
             - name: GLOBECO_PA_METRICS_ENHANCED_SERVICE_NAME
               value: "globeco-portfolio-accounting-service"
+            # - name: GODEBUG
+            #   value: "http2debug=2"
             
             # Inject the node and pod metadata from the Downward API
             - name: MY_POD_IP
