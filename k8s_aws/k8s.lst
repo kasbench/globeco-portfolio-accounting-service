@@ -1,0 +1,5 @@
+postgresql-persistent-volume-claim.yaml
+portfolio-accounting-service-postgresql.yaml
+redis-persistent-volume-claim.yaml
+redis.yaml
+portfolio-accounting-service-server.yaml

@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: globeco-portfolio-accounting-service
+  namespace: globeco
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: globeco-portfolio-accounting-service
+  template:
+    metadata:
+      labels:
+        app: globeco-portfolio-accounting-service
+    spec:
+      containers:
+        - name: globeco-portfolio-accounting-service
+          image: kasbench/globeco-portfolio-accounting-service-server:1.0.2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          env:
+            - name: KAFKA_BROKERS
+              value: "globeco-execution-service-kafka:9093"
+            - name: GLOBECO_PA_METRICS_ENHANCED_ENABLED
+              value: "true"
+            - name: GLOBECO_PA_METRICS_ENHANCED_SERVICE_NAME
+              value: "globeco-portfolio-accounting-service"
+            # - name: GODEBUG
+            #   value: "http2debug=2"
+            
+            # Inject the node and pod metadata from the Downward API
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: MY_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+              
+            - name: GLOBECO_PA_TRACING_ENDPOINT
+              value: "$(NODE_IP):4317"
+
+            # Define standard service identity attributes
+            - name: OTEL_SERVICE_NAME
+              value: "globeco-portfolio-accounting-service" 
+            - name: OTEL_SERVICE_NAMESPACE
+              value: "globeco"
+            
+            # Inject Kubernetes metadata as resource attributes for k8sattributes processor
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: >-
+                k8s.pod.ip=$(MY_POD_IP),
+                k8s.pod.name=$(MY_POD_NAME),
+                k8s.node.name=$(MY_NODE_NAME),
+                k8s.namespace.name=$(MY_NAMESPACE)  
+
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 100Mi
+            limits:
+              cpu: 200m
+              memory: 100Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8087
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8087
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: globeco-portfolio-accounting-service
+  namespace: globeco
+spec:
+  selector:
+    app: globeco-portfolio-accounting-service
+  ports:
+    - protocol: TCP
+      port: 8087
+      targetPort: 8087
+  type: ClusterIP
