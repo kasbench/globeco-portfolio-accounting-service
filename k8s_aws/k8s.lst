@@ -4,3 +4,4 @@ redis-persistent-volume-claim.yaml
 redis.yaml
 +30
 portfolio-accounting-service-server.yaml
+hpa.yaml
