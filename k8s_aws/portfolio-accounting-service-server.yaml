@@ -13,6 +13,29 @@ spec:
       labels:
         app: globeco-portfolio-accounting-service
     spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -h globeco-portfolio-accounting-service-postgresql -p 5432; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready."
+        - name: wait-for-redis
+          image: redis:7-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until redis-cli -h globeco-portfolio-accounting-service-redis -p 6379 ping | grep -q PONG; do
+                echo "Waiting for Redis to be ready..."
+                sleep 2
+              done
+              echo "Redis is ready."
       containers:
         - name: globeco-portfolio-accounting-service
           image: kasbench/globeco-portfolio-accounting-service-server:1.0.2

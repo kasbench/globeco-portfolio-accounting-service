@@ -98,32 +98,663 @@ go run cmd/cli/main.go --help
 
 ## 📖 API Documentation
 
-The service provides a comprehensive REST API documented with OpenAPI/Swagger:
-
-### Core Endpoints
-
-#### Transactions
-- `GET /api/v1/transactions` - List transactions with filtering
-- `POST /api/v1/transactions` - Create batch of transactions  
-- `GET /api/v1/transaction/{id}` - Get specific transaction
-
-#### Balances
-- `GET /api/v1/balances` - List portfolio balances
-- `GET /api/v1/balance/{id}` - Get specific balance
-- `GET /api/v1/portfolios/{portfolioId}/summary` - Portfolio summary
-
-#### Health & Monitoring
-- `GET /health` - Basic health check
-- `GET /health/ready` - Kubernetes readiness probe
-- `GET /health/live` - Kubernetes liveness probe
-- `GET /metrics` - Prometheus metrics
+The service provides a comprehensive REST API documented with OpenAPI/Swagger. Base URL: `http://localhost:8087`
 
 ### Interactive Documentation
-Visit **http://localhost:8087/swagger/index.html** for interactive API exploration with:
-- Try-it-out functionality
-- Request/response examples
-- Schema documentation
-- Authentication testing
+Visit **http://localhost:8087/swagger/index.html** for interactive API exploration with try-it-out functionality, request/response examples, and schema documentation.
+
+---
+
+### Common Response Objects
+
+All error responses use this structure:
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error description",
+    "details": {},
+    "timestamp": "2024-01-15T10:30:00Z",
+    "traceId": "optional-trace-id"
+  }
+}
+```
+
+All paginated responses include:
+
+```json
+{
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 150,
+    "hasMore": true,
+    "page": 1,
+    "totalPages": 3
+  }
+}
+```
+
+---
+
+### Transaction Endpoints
+
+#### GET /api/v1/transactions
+
+List transactions with optional filtering, pagination, and sorting.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `portfolio_id` | string | No | — | Filter by portfolio ID (24 characters) |
+| `security_id` | string | No | — | Filter by security ID (24 characters). Use `null` for cash transactions |
+| `transaction_type` | string | No | — | Filter by type: `BUY`, `SELL`, `SHORT`, `COVER`, `DEP`, `WD`, `IN`, `OUT` |
+| `status` | string | No | — | Filter by status: `NEW`, `PROC`, `ERROR`, `FATAL` |
+| `transaction_date` | string | No | — | Filter by exact date (format: `YYYY-MM-DD`) |
+| `from_date` | string | No | — | Date range start (format: `YYYY-MM-DD`) |
+| `to_date` | string | No | — | Date range end (format: `YYYY-MM-DD`) |
+| `offset` | int | No | `0` | Pagination offset (min: 0) |
+| `limit` | int | No | `50` | Page size (min: 1, max: 1000) |
+| `sortby` | string | No | `transaction_date,id` | Comma-separated sort fields: `portfolio_id`, `security_id`, `transaction_date`, `transaction_type`, `status`, `created_at` |
+
+**Response (200 OK):**
+
+```json
+{
+  "transactions": [
+    {
+      "id": 1,
+      "portfolioId": "PORTFOLIO123456789012345",
+      "securityId": "SECURITY123456789012345",
+      "sourceId": "EXTERNAL_SYSTEM",
+      "status": "PROC",
+      "transactionType": "BUY",
+      "quantity": "100.00",
+      "price": "50.25",
+      "transactionDate": "20240130",
+      "reprocessingAttempts": 0,
+      "version": 1,
+      "errorMessage": null
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 1,
+    "hasMore": false,
+    "page": 1,
+    "totalPages": 1
+  }
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Successfully retrieved transactions |
+| 400 | Invalid filter parameters (`INVALID_FILTER`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+#### GET /api/v1/transaction/{id}
+
+Retrieve a specific transaction by its unique ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | int64 | Yes | Transaction ID |
+
+**Response (200 OK):**
+
+```json
+{
+  "id": 1,
+  "portfolioId": "PORTFOLIO123456789012345",
+  "securityId": "SECURITY123456789012345",
+  "sourceId": "EXTERNAL_SYSTEM",
+  "status": "PROC",
+  "transactionType": "BUY",
+  "quantity": "100.00",
+  "price": "50.25",
+  "transactionDate": "20240130",
+  "reprocessingAttempts": 0,
+  "version": 1,
+  "errorMessage": null
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Successfully retrieved transaction |
+| 400 | Missing or invalid transaction ID (`MISSING_ID`, `INVALID_ID`) |
+| 404 | Transaction not found (`NOT_FOUND`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+#### POST /api/v1/transactions
+
+Create and process a batch of transactions (1–1000 per request).
+
+**Request Body:** Array of transaction objects
+
+```json
+[
+  {
+    "portfolioId": "PORTFOLIO123456789012345",
+    "securityId": "SECURITY123456789012345",
+    "sourceId": "EXTERNAL_SYSTEM",
+    "transactionType": "BUY",
+    "quantity": "100.00",
+    "price": "50.25",
+    "transactionDate": "20240130"
+  }
+]
+```
+
+**Request Field Validation:**
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `portfolioId` | string | Yes | Exactly 24 characters |
+| `securityId` | string | No | Exactly 24 characters (omit for cash transactions: `DEP`, `WD`) |
+| `sourceId` | string | Yes | Max 50 characters |
+| `transactionType` | string | Yes | One of: `BUY`, `SELL`, `SHORT`, `COVER`, `DEP`, `WD`, `IN`, `OUT` |
+| `quantity` | decimal | Yes | Non-zero value |
+| `price` | decimal | Yes | Greater than 0 (cash transactions must use `1.0`) |
+| `transactionDate` | string | Yes | Date string (YYYYMMDD format) |
+
+**Transaction Type Definitions:**
+
+| Type | Description | Cash Impact | Security Impact |
+|------|-------------|-------------|-----------------|
+| `BUY` | Buy security | Decrease cash | Increase long position |
+| `SELL` | Sell security | Increase cash | Decrease long position |
+| `SHORT` | Short sell | Increase cash | Increase short position |
+| `COVER` | Cover short | Decrease cash | Decrease short position |
+| `DEP` | Cash deposit | Increase cash | No security (securityId must be null) |
+| `WD` | Cash withdrawal | Decrease cash | No security (securityId must be null) |
+| `IN` | Transfer in | No cash impact | Increase long position |
+| `OUT` | Transfer out | No cash impact | Decrease long position |
+
+**Response (201 Created) — All transactions succeeded:**
+
+```json
+{
+  "successful": [
+    {
+      "id": 1,
+      "portfolioId": "PORTFOLIO123456789012345",
+      "securityId": "SECURITY123456789012345",
+      "sourceId": "EXTERNAL_SYSTEM",
+      "status": "NEW",
+      "transactionType": "BUY",
+      "quantity": "100.00",
+      "price": "50.25",
+      "transactionDate": "20240130",
+      "reprocessingAttempts": 0,
+      "version": 1,
+      "errorMessage": null
+    }
+  ],
+  "failed": [],
+  "summary": {
+    "totalRequested": 1,
+    "successful": 1,
+    "failed": 0,
+    "successRate": 1.0
+  }
+}
+```
+
+**Response (207 Multi-Status) — Partial failures:**
+
+```json
+{
+  "successful": [
+    { "id": 1, "...": "..." }
+  ],
+  "failed": [
+    {
+      "transaction": {
+        "portfolioId": "INVALID",
+        "securityId": null,
+        "sourceId": "SRC",
+        "transactionType": "BUY",
+        "quantity": "100",
+        "price": "50.25",
+        "transactionDate": "20240130"
+      },
+      "errors": [
+        {
+          "field": "portfolioId",
+          "message": "must be exactly 24 characters",
+          "value": "INVALID"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalRequested": 2,
+    "successful": 1,
+    "failed": 1,
+    "successRate": 0.5
+  }
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 201 | All transactions created successfully |
+| 207 | Partial success — some transactions failed validation |
+| 400 | Invalid JSON body (`INVALID_JSON`), empty batch (`EMPTY_BATCH`), or batch exceeds 1000 (`BATCH_TOO_LARGE`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+### Balance Endpoints
+
+#### GET /api/v1/balances
+
+List portfolio balances with optional filtering, pagination, and sorting.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `portfolio_id` | string | No | — | Filter by portfolio ID (24 characters) |
+| `security_id` | string | No | — | Filter by security ID (24 characters). Use `null` for cash balances |
+| `cash_only` | bool | No | — | Only return cash balances (where securityId is null) |
+| `zero_balances_only` | bool | No | — | Only return balances where both long and short are zero |
+| `non_zero_balances_only` | bool | No | — | Only return balances with non-zero quantities |
+| `last_updated_from` | string | No | — | Filter balances updated on or after this date (format: `YYYY-MM-DD`) |
+| `last_updated_to` | string | No | — | Filter balances updated on or before this date (format: `YYYY-MM-DD`) |
+| `offset` | int | No | `0` | Pagination offset (min: 0) |
+| `limit` | int | No | `50` | Page size (min: 1, max: 1000) |
+| `sortby` | string | No | `portfolio_id,security_id` | Comma-separated sort fields: `portfolio_id`, `security_id`, `last_updated`, `quantity_long`, `quantity_short` |
+
+**Response (200 OK):**
+
+```json
+{
+  "balances": [
+    {
+      "id": 1,
+      "portfolioId": "PORTFOLIO123456789012345",
+      "securityId": "SECURITY123456789012345",
+      "quantityLong": "1000.00",
+      "quantityShort": "0.00",
+      "lastUpdated": "2024-01-30T15:30:00Z",
+      "version": 3
+    },
+    {
+      "id": 2,
+      "portfolioId": "PORTFOLIO123456789012345",
+      "securityId": null,
+      "quantityLong": "50000.00",
+      "quantityShort": "0.00",
+      "lastUpdated": "2024-01-30T15:30:00Z",
+      "version": 5
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 2,
+    "hasMore": false,
+    "page": 1,
+    "totalPages": 1
+  }
+}
+```
+
+**Notes:**
+- A balance with `securityId: null` represents a **cash balance** for the portfolio.
+- A balance with a `securityId` value represents a **security position**.
+- `quantityLong` represents long positions; `quantityShort` represents short positions.
+- `version` is used for optimistic locking on updates.
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Successfully retrieved balances |
+| 400 | Invalid filter parameters (`INVALID_FILTER`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+#### GET /api/v1/balance/{id}
+
+Retrieve a specific balance by its unique ID.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | int64 | Yes | Balance ID |
+
+**Response (200 OK):**
+
+```json
+{
+  "id": 1,
+  "portfolioId": "PORTFOLIO123456789012345",
+  "securityId": "SECURITY123456789012345",
+  "quantityLong": "1000.00",
+  "quantityShort": "0.00",
+  "lastUpdated": "2024-01-30T15:30:00Z",
+  "version": 3
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Successfully retrieved balance |
+| 400 | Missing or invalid balance ID (`MISSING_ID`, `INVALID_ID`) |
+| 404 | Balance not found (`NOT_FOUND`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+#### GET /api/v1/portfolios/{portfolioId}/summary
+
+Get a comprehensive summary of a portfolio including cash balance and all security positions.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `portfolioId` | string | Yes | Portfolio ID (24 characters) |
+
+**Response (200 OK):**
+
+```json
+{
+  "portfolioId": "PORTFOLIO123456789012345",
+  "cashBalance": "50000.00",
+  "securityCount": 3,
+  "lastUpdated": "2024-01-30T15:30:00Z",
+  "securities": [
+    {
+      "securityId": "SECURITY_AAPL_67890123456",
+      "quantityLong": "500.00",
+      "quantityShort": "0.00",
+      "netQuantity": "500.00",
+      "lastUpdated": "2024-01-30T15:30:00Z"
+    },
+    {
+      "securityId": "SECURITY_TSLA_11223344556",
+      "quantityLong": "200.00",
+      "quantityShort": "50.00",
+      "netQuantity": "150.00",
+      "lastUpdated": "2024-01-29T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Successfully retrieved portfolio summary |
+| 400 | Missing portfolio ID (`MISSING_PORTFOLIO_ID`) |
+| 404 | Portfolio not found (`NOT_FOUND`) |
+| 500 | Internal server error (`INTERNAL_ERROR`) |
+
+---
+
+### Health & Monitoring Endpoints
+
+#### GET /health
+
+Basic health check. Returns service status. Also available at `/api/v1/health`.
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {}
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Service is healthy |
+
+---
+
+#### GET /health/live
+
+Kubernetes liveness probe. Always returns alive if the process is running. Also available at `/api/v1/health/live`.
+
+**Response (200 OK):**
+
+```json
+{
+  "status": "alive",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production"
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Service process is alive |
+
+---
+
+#### GET /health/ready
+
+Kubernetes readiness probe. Checks connectivity to external dependencies (portfolio service, security service). Also available at `/api/v1/health/ready`.
+
+**Response (200 OK) — Ready:**
+
+```json
+{
+  "status": "ready",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {
+    "portfolio_service": { "status": "healthy" },
+    "security_service": { "status": "healthy" }
+  }
+}
+```
+
+**Response (503 Service Unavailable) — Not Ready:**
+
+```json
+{
+  "status": "not_ready",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {
+    "portfolio_service": { "status": "unhealthy", "error": "connection refused" },
+    "security_service": { "status": "healthy" }
+  }
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Service is ready to receive traffic |
+| 503 | Service is not ready (one or more dependencies unavailable) |
+
+---
+
+#### GET /health/detailed
+
+Detailed health check with dependency timing information. Also available at `/api/v1/health/detailed`.
+
+**Response (200 OK) — Healthy:**
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {
+    "portfolio_service": { "status": "healthy", "checked_at": "2024-01-30T15:30:00Z" },
+    "security_service": { "status": "healthy", "checked_at": "2024-01-30T15:30:00Z" }
+  }
+}
+```
+
+**Response (503 Service Unavailable) — Degraded:**
+
+```json
+{
+  "status": "degraded",
+  "timestamp": "2024-01-30T15:30:00Z",
+  "version": "1.0.0",
+  "environment": "production",
+  "checks": {
+    "portfolio_service": { "status": "unhealthy", "error": "timeout", "checked_at": "2024-01-30T15:30:00Z" },
+    "security_service": { "status": "healthy", "checked_at": "2024-01-30T15:30:00Z" }
+  }
+}
+```
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | All dependencies healthy |
+| 503 | One or more dependencies unhealthy (status: `degraded`) |
+
+---
+
+#### GET /metrics
+
+Prometheus metrics endpoint. Only available when metrics are enabled in configuration.
+
+**Response:** Prometheus text exposition format with metrics including:
+- HTTP request duration and count by method, path, and status code
+- Transaction processing metrics
+- Balance update metrics
+- Database connection pool metrics
+
+**Status Codes:**
+
+| Code | Description |
+|------|-------------|
+| 200 | Metrics returned in Prometheus format |
+
+---
+
+### Documentation Endpoints
+
+#### GET /api
+
+Returns API metadata including service name, version, and links to documentation.
+
+**Response (200 OK):**
+
+```json
+{
+  "name": "GlobeCo Portfolio Accounting Service API",
+  "version": "1.0",
+  "description": "Financial transaction processing and portfolio balance management microservice",
+  "documentation": {
+    "swagger_ui": "/swagger/index.html",
+    "openapi_spec": "/swagger/doc.json",
+    "redoc": "/redoc"
+  },
+  "contact": {
+    "name": "GlobeCo Support",
+    "email": "noah@kasbench.org",
+    "url": "https://github.com/kasbench/globeco-portfolio-accounting-service"
+  },
+  "license": {
+    "name": "MIT",
+    "url": "https://opensource.org/licenses/MIT"
+  }
+}
+```
+
+---
+
+#### GET /swagger/index.html
+
+Serves the Swagger UI interactive documentation interface.
+
+#### GET /swagger
+
+Redirects (308 Permanent Redirect) to `/swagger/index.html`.
+
+#### GET /openapi.json
+
+Returns the OpenAPI 3.0 specification in JSON format.
+
+#### GET /docs
+
+Redirects (308 Permanent Redirect) to `/swagger/index.html`.
+
+---
+
+### Request/Response Headers
+
+**Request Headers:**
+
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` (required for POST requests) |
+| `X-Request-ID` | Optional request tracking ID (auto-generated if not provided) |
+| `X-Correlation-ID` | Optional correlation ID for distributed tracing (auto-generated if not provided) |
+
+**Response Headers:**
+
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Request-ID` | Request tracking ID |
+| `X-Correlation-ID` | Correlation ID for distributed tracing |
+
+---
+
+### Domain Reference
+
+**Transaction Statuses:**
+
+| Status | Description | Can Reprocess? |
+|--------|-------------|----------------|
+| `NEW` | Newly created, pending processing | Yes |
+| `PROC` | Successfully processed (final state) | No |
+| `ERROR` | Processing failed with recoverable error | Yes |
+| `FATAL` | Processing failed with unrecoverable error (final state) | No |
+
+**Pagination Defaults:**
+- Default page size: 50
+- Maximum page size: 1000
+- Maximum batch size for POST: 1000 transactions
 
 ## ⚙️ Configuration
 
